@@ -672,28 +672,11 @@
   </Target>
   -->
   <PropertyGroup>
-    <PostBuildEvent>if $(ConfigurationName) == Release (
-if $(PlatformName) == x86 $(SolutionDir)$(ProjectName)\Resources\NetZ\netz.exe -pl x86 -s -so -z $(TargetPath)
-if $(PlatformName) == x64 $(SolutionDir)$(ProjectName)\Resources\NetZ\netz.exe -pl x64 -s -so -z $(TargetPath)
-if $(PlatformName) == AnyCPU $(SolutionDir)\$(ProjectName)\Resources\NetZ\netz.exe -s -so -z $(TargetPath)
-)
-::if $(PlatformName) == x86 COPY /Y "$(TargetPath)" "$(SolutionDir)x360ce\x360ce\bin\$(ConfigurationName)"
-::if $(PlatformName) == x64 COPY /Y "$(TargetPath)" "$(SolutionDir)x360ce\x360ce\bin64\$(ConfigurationName)"</PostBuildEvent>
+    <PostBuildEvent>
+    </PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup>
-    <PreBuildEvent>echo copy x360ce.Engine.dll to $(ProjectDir)Resources
-copy /y "$(SolutionDir)x360ce.Engine\$(OutDir)x360ce.Engine.dll" "$(ProjectDir)Resources"
-echo copy x360ce.Engine.XmlSerializers.dll to $(ProjectDir)Resources
-copy /y "$(SolutionDir)x360ce.Engine\$(OutDir)x360ce.Engine.XmlSerializers.dll" "$(ProjectDir)Resources"
-if $(ConfigurationName) == Debug (
-if $(PlatformName) == x86 (
-copy /y "$(SolutionDir)x360ce\x360ce\bin\Debug\*.dll" "$(TargetDir)"
-copy /y "$(SolutionDir)x360ce\x360ce\bin\Debug\*.pdb" "$(TargetDir)"
-)
-if $(PlatformName) == x64 (
-copy /y "$(SolutionDir)x360ce\x360ce\bin64\Debug\*.dll" "$(TargetDir)"
-copy /y "$(SolutionDir)x360ce\x360ce\bin64\Debug\*.pdb" "$(TargetDir)"
-)
-)</PreBuildEvent>
+    <PreBuildEvent>
+    </PreBuildEvent>
   </PropertyGroup>
 </Project>
