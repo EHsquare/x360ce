@@ -33,6 +33,16 @@
 
 extern "C" DWORD WINAPI XInputGetState(DWORD dwUserIndex, XINPUT_STATE* pState)
 {
+#if PLAYER1
+	return XInputModuleManager::Get().XInputGetState(0, pState);
+#elif PLAYER2
+	return XInputModuleManager::Get().XInputGetState(1, pState);
+#elif PLAYER3
+	return XInputModuleManager::Get().XInputGetState(2, pState);
+#elif PLAYER4
+	return XInputModuleManager::Get().XInputGetState(3, pState);
+#endif
+
 	//PrintLog("XInputGetState");
 
 	ControllerBase* pController;
