@@ -79,6 +79,8 @@ public:
 	static const u32 HOOK_WT		= 0x10000000UL;
 	static const u32 HOOK_STOP		= 0x20000000UL;
 
+	
+
 	typedef std::vector<InputHookDevice>::iterator iterator;
 	typedef std::vector<InputHookDevice>::const_iterator const_iterator;
 

@@ -13,4 +13,3 @@
 #include "Timer.h"
 #include "WindowsVersion.h"
 #include "COMDeleter.h"
-

@@ -63,8 +63,6 @@ BOOL CALLBACK Controller::EnumObjectsCallback(LPCDIDEVICEOBJECTINSTANCE lpddoi, 
 
 DWORD Controller::GetState(XINPUT_STATE* pState)
 {
-	return XInputModuleManager::Get().XInputGetState(1, pState);
-
 	// Passthrough?
 	if (m_passthrough)
 		return XInputModuleManager::Get().XInputGetState(m_passthroughindex, pState);

@@ -19,8 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>x360ce1</ProjectName>
-    <ProjectGuid>{39143C1D-4F33-470F-8848-AE76471AD4B1}</ProjectGuid>
+    <ProjectName>x360ce3_nokb</ProjectName>
+    <ProjectGuid>{D8316287-1B2B-4E27-B872-0ECA45DC87C1}</ProjectGuid>
     <RootNamespace>x360ce</RootNamespace>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
