@@ -10,6 +10,12 @@
 #include "ControllerManager.h"
 #include "InputHookManager.h"
 
+char* KeepString(const char* input)
+{
+	char* c = (char*)malloc(strlen(input) + 1);
+	strcpy(c, input);
+	return c;
+}
 
 VOID InitInstance()
 {
@@ -25,6 +31,8 @@ VOID InitInstance()
 	{
 		LogSystem();
 	}
+
+	filelog = true;
 
 	if (filelog)
 	{
@@ -48,23 +56,23 @@ VOID InitInstance()
 	//CheckCommonDirectory(&inipath, "x360ce");
 	//if (!ini.Load(inipath)) return;
 
-	int hookWindows;
-	int hookGameWindow;
 	bool hookNeeded;
+	std::string gameWindowName;
+	int playerOverride;
 	ini.Get("Options", "HookNeeded", &hookNeeded);
-	ini.Get("Options", "HookWindows", &hookWindows);
-	ini.Get("Options", "HookGameWindow", &hookGameWindow);
+	ini.Get("Options", "GameWindowName", &gameWindowName);
+	ini.Get("Options", "PlayerOverride", &playerOverride);
+
+	char* gameWndName = KeepString(gameWindowName.c_str());
 
 	Globals* global = Globals::GetInstance();
-	global->HookNeeded(hookNeeded);
-	global->HookWindows(hookWindows);
-	global->HookGameWindow(hookGameWindow);
+	global->SetHookNeeded(hookNeeded);
+	global->SetGameWindowName(gameWndName);
+	global->SetPlayerOVerride(playerOverride);
 
-#ifdef _DEBUG
 	PrintLog(("HookNeeded: " + std::to_string(hookNeeded)).c_str());
-	PrintLog(("HookWindows: " + std::to_string(hookWindows)).c_str());
-	PrintLog(("HookGameWindow: " + std::to_string(hookGameWindow)).c_str());
-#endif
+	PrintLog((std::string("GameWindowName: ") + gameWindowName).c_str());
+	PrintLog(gameWindowName.c_str());
 }
 
 extern "C" VOID WINAPI Reset()

@@ -2,6 +2,8 @@
 
 #include "targetver.h"
 
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -16,3 +18,4 @@
 #include <dinput.h>
 
 #include "Common.h"
+

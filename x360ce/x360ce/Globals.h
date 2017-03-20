@@ -9,8 +9,8 @@ private:
 	}
 
 	bool hookNeeded = false;
-	int hookWindows = 0;
-	int hookGameWindow = 0;
+	char* gameWindowName;
+	int playerOverride;
 
 public:
 	static Globals* GetInstance();
@@ -18,30 +18,30 @@ public:
 	{
 	}
 
-	bool HookNeeded()
+	char* GetGameWindowName()
+	{
+		return gameWindowName;
+	}
+	void SetGameWindowName(char* value)
+	{
+		gameWindowName = value;
+	}
+
+	bool GetHookNeeded()
 	{
 		return hookNeeded;
 	}
-	void HookNeeded(bool value)
+	void SetHookNeeded(bool value)
 	{
 		hookNeeded = value;
 	}
 
-	int HookWindows()
+	int GetPlayerOverride()
 	{
-		return hookWindows;
+		return playerOverride;
 	}
-	void HookWindows(int value)
+	void SetPlayerOVerride(int value)
 	{
-		hookWindows = value;
-	}
-
-	int HookGameWindow()
-	{
-		return hookGameWindow;
-	}
-	void HookGameWindow(int value)
-	{
-		hookGameWindow = value;
+		playerOverride = value;
 	}
 };

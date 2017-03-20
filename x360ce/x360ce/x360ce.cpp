@@ -341,64 +341,135 @@ extern "C" DWORD WINAPI XInputGetState(DWORD dwUserIndex, XINPUT_STATE* pState)
 	{
 		Globals* global = Globals::GetInstance();
 
-		if (global->HookNeeded())
+		if (global->GetHookNeeded())
 		{
-			int wait = global->HookWindows();
+			const char *wndName = global->GetGameWindowName();
+
+			if (wndName == nullptr)
+			{
+				return XInputModuleManager::Get().XInputGetState(0, pState);
+			}
+
+			std::string gameWndName(wndName);
 
 			std::vector<HWND> windows = getToplevelWindows();
-			size_t size = windows.size();
-			if (size == wait || wait == -1)
+			char* str = new char[50];
+			for (int i = 0; i < 50; i++)
 			{
-				GameHWND = windows[global->HookGameWindow()];
-				TrueWndProc = (WNDPROC)SetWindowLongPtr(GameHWND, GWL_WNDPROC, (LONG_PTR)&HookWndProc);
-				Hooked = true;
-
-				HMODULE mod = LoadLibrary("user32");
-				void* getForegroundPtr = GetProcAddress(mod, "GetForegroundWindow");
-				void* setForegroundPtr = GetProcAddress(mod, "SetForegroundWindow");
-				void* setActivePtr = GetProcAddress(mod, "SetActiveWindow");
-
-				MH_Initialize();
-
-				IH_CreateHook(getForegroundPtr, HookGetForegroundWindow, reinterpret_cast<LPVOID*>(&TrueGetForegroundWindow));
-				IH_EnableHook(getForegroundPtr);
-
-				IH_CreateHook(setForegroundPtr, HookSetForegroundWindow, reinterpret_cast<LPVOID*>(&TrueSetForegroundWindow));
-				IH_EnableHook(setForegroundPtr);
-
-				IH_CreateHook(setActivePtr, HookSetActiveWindow, reinterpret_cast<LPVOID*>(&TrueSetActiveWindow));
-				IH_EnableHook(setActivePtr);
-
-				PrintLog("Hooked to game window");
-#ifdef PLAYER1
-				PrintLog("Player 1");
-#elif PLAYER2
-				PrintLog("Player 2");
-#elif PLAYER3
-				PrintLog("Player 3");
-#elif PLAYER4
-				PrintLog("Player 4");
-#endif
+				str[i] = 0;
 			}
+
+			size_t size = windows.size();
+			for (int i = 0; i < size; i++)
+			{
+				HWND wnd = windows[i];
+				if (wnd == nullptr)
+				{
+					continue;
+				}
+
+				GetWindowText(wnd, str, 50);
+
+				std::string stStr = std::string(str);
+				if (stStr == gameWndName)
+				{
+					GameHWND = wnd;
+					//GameHWND = windows[global->HookGameWindow()];
+					TrueWndProc = (WNDPROC)SetWindowLongPtr(GameHWND, GWL_WNDPROC, (LONG_PTR)&HookWndProc);
+					Hooked = true;
+
+					//GetActiveWindow();
+					HMODULE mod = LoadLibrary("user32");
+					void* getForegroundPtr = GetProcAddress(mod, "GetForegroundWindow");
+					void* setForegroundPtr = GetProcAddress(mod, "SetForegroundWindow");
+					void* setActivePtr = GetProcAddress(mod, "SetActiveWindow");
+
+					MH_Initialize();
+
+					IH_CreateHook(getForegroundPtr, HookGetForegroundWindow, reinterpret_cast<LPVOID*>(&TrueGetForegroundWindow));
+					IH_EnableHook(getForegroundPtr);
+
+					IH_CreateHook(setForegroundPtr, HookSetForegroundWindow, reinterpret_cast<LPVOID*>(&TrueSetForegroundWindow));
+					IH_EnableHook(setForegroundPtr);
+
+					IH_CreateHook(setActivePtr, HookSetActiveWindow, reinterpret_cast<LPVOID*>(&TrueSetActiveWindow));
+					IH_EnableHook(setActivePtr);
+
+					PrintLog("Hooked to game window");
+
+					int playerOverride = global->GetPlayerOverride();
+
+					if (playerOverride == 0)
+					{
+						PrintLog("Player 1");
+					}
+					else if (playerOverride == 1)
+					{
+						PrintLog("Player 2");
+					}
+					else if (playerOverride == 2)
+					{
+						PrintLog("Player 3");
+					}
+					else if (playerOverride == 3)
+					{
+						PrintLog("Player 4");
+					}
+
+//#ifdef PLAYER1
+//					PrintLog("Player 1");
+//#elif PLAYER2
+//					PrintLog("Player 2");
+//#elif PLAYER3
+//					PrintLog("Player 3");
+//#elif PLAYER4
+//					PrintLog("Player 4");
+//#endif
+
+					break;
+				}
+			}
+			delete[] str;
 		}
 	}
 
 
 	if (dwUserIndex == 0)
 	{
-#ifdef PLAYER1
-		return XInputModuleManager::Get().XInputGetState(0, pState);
-#elif PLAYER2
-		return XInputModuleManager::Get().XInputGetState(1, pState);
-#elif PLAYER3
-		return XInputModuleManager::Get().XInputGetState(2, pState);
-#elif PLAYER4
-		return XInputModuleManager::Get().XInputGetState(3, pState);
-#endif
+		Globals* global = Globals::GetInstance();
+		int playerOverride = global->GetPlayerOverride();
+
+		if (playerOverride == 0)
+		{
+			PrintLog("Player 1");
+		}
+		else if (playerOverride == 1)
+		{
+			PrintLog("Player 2");
+		}
+		else if (playerOverride == 2)
+		{
+			PrintLog("Player 3");
+		}
+		else if (playerOverride == 3)
+		{
+			PrintLog("Player 4");
+		}
+
+		return XInputModuleManager::Get().XInputGetState(playerOverride, pState);
+
+//#ifdef PLAYER1
+//		return XInputModuleManager::Get().XInputGetState(0, pState);
+//#elif PLAYER2
+//		return XInputModuleManager::Get().XInputGetState(1, pState);
+//#elif PLAYER3
+//		return XInputModuleManager::Get().XInputGetState(2, pState);
+//#elif PLAYER4
+//		return XInputModuleManager::Get().XInputGetState(3, pState);
+//#endif
 	}
 
-	return XInputModuleManager::Get().XInputGetState(0, pState);
-
+	//return XInputModuleManager::Get().XInputGetState(0, pState);
 
 	return ERROR_DEVICE_NOT_CONNECTED;
 
