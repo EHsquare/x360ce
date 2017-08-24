@@ -1,47 +1,32 @@
-#pragma once
+﻿#pragma once
 
 class Globals
 {
-private:
-	static Globals *single;
-	Globals()
-	{
-	}
-
-	bool hookNeeded = false;
-	char* gameWindowName;
-	int playerOverride;
-
 public:
-	static Globals* GetInstance();
-	~Globals()
-	{
-	}
+	static bool dInputEnabled;
+	static DWORD dInputLibrary;
+	static GUID dInputPlayerGuid;
+	static bool dInputForceDisable;
 
-	char* GetGameWindowName()
-	{
-		return gameWindowName;
-	}
-	void SetGameWindowName(char* value)
-	{
-		gameWindowName = value;
-	}
+	static bool xInputEnabled;
+	static DWORD xInputPlayerId;
+	static bool xInputReRouteEnabled;
+	static DWORD xInputReRouteTemplate;
 
-	bool GetHookNeeded()
-	{
-		return hookNeeded;
-	}
-	void SetHookNeeded(bool value)
-	{
-		hookNeeded = value;
-	}
+	static bool blockInputEvents;
+	static bool blockMouseEvents;
+	static bool blockKeyboardEvents;
 
-	int GetPlayerOverride()
-	{
-		return playerOverride;
-	}
-	void SetPlayerOVerride(int value)
-	{
-		playerOverride = value;
-	}
+	static bool enableMKBInput;
+
+	static bool forceFocus;
+	static std::wstring* forceFocusWindowName;
+
+	static DWORD windowY;
+	static DWORD windowX;
+	static DWORD resWidth;
+	static DWORD resHeight;
+
+	static bool hasHooked;
+	static bool hasSetWindow;
 };

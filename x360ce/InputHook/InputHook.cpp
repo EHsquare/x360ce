@@ -147,7 +147,7 @@ m_timeout_thread(INVALID_HANDLE_VALUE)
 		}
 	}
 
-	if (!m_devices.empty())
+	//if (!m_devices.empty())
 	{
 		if (!read_from_database)
 			ini.Get<u32>("InputHook", "Timeout", &m_timeout, 45);
@@ -161,8 +161,8 @@ m_timeout_thread(INVALID_HANDLE_VALUE)
 		if (GetState(HOOK_LL))
 			HookLL();
 
-		if (GetState(HOOK_COM))
-			HookCOM();
+		//if (GetState(HOOK_COM))
+			//HookCOM();
 
 		if (GetState(HOOK_DI))
 			HookDI();

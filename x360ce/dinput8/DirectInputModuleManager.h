@@ -15,6 +15,8 @@ public:
 	HRESULT(WINAPI* DllGetClassObject)(REFCLSID rclsid, REFIID riid, LPVOID FAR* ppv);
 	HRESULT(WINAPI* DllRegisterServer)(void);
 	HRESULT(WINAPI* DllUnregisterServer)(void);
+	HRESULT(WINAPI* CreateDevice)(REFGUID rguid, LPDIRECTINPUTDEVICE * lplpDirectInputDevice, LPUNKNOWN pUnkOuter);
+	HRESULT(WINAPI* EnumDevices)(DWORD dwDevType, LPDIENUMDEVICESCALLBACK lpCallback, LPVOID pvRef, DWORD dwFlags);
 
 	DirectInputModuleManager()
 	{
@@ -56,6 +58,9 @@ public:
 		GetProcAddress("DllGetClassObject", &DllGetClassObject);
 		GetProcAddress("DllRegisterServer", &DllRegisterServer);
 		GetProcAddress("DllUnregisterServer", &DllUnregisterServer);
+
+		GetProcAddress("CreateDevice", &CreateDevice);
+		GetProcAddress("EnumDevices", &EnumDevices);
 	}
 
 	~DirectInputModuleManager()

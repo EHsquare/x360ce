@@ -157,26 +157,26 @@ void Config::ParsePrefix(const std::string& input, MappingType* pMappingType, s8
 	{
 		switch (input[0])
 		{
-			case 'a': // Axis
-				*pMappingType = AXIS;
-				break;
-			case 's': // Slider
-				*pMappingType = SLIDER;
-				break;
-			case 'x': // Half range axis
-				*pMappingType = HAXIS;
-				break;
-			case 'h': // Half range slider
-				*pMappingType = HSLIDER;
-				break;
-			case 'z':
-				*pMappingType = CBUT;
-				break;
-			case 'd':
-				*pMappingType = DPADBUTTON;
-				break;
-			default: // Digital
-				*pMappingType = DIGITAL;
+		case 'a': // Axis
+			*pMappingType = AXIS;
+			break;
+		case 's': // Slider
+			*pMappingType = SLIDER;
+			break;
+		case 'x': // Half range axis
+			*pMappingType = HAXIS;
+			break;
+		case 'h': // Half range slider
+			*pMappingType = HSLIDER;
+			break;
+		case 'z':
+			*pMappingType = CBUT;
+			break;
+		case 'd':
+			*pMappingType = DPADBUTTON;
+			break;
+		default: // Digital
+			*pMappingType = DIGITAL;
 		}
 	}
 
@@ -192,7 +192,7 @@ void Config::ParsePrefix(const std::string& input, MappingType* pMappingType, s8
 void Config::ReadConfig()
 {
 	IniFile ini;
-	std::string inipath("x360ce.ini");
+	std::string inipath("ncoop.ini");
 	if (!ini.Load(inipath))
 		CheckCommonDirectory(&inipath, "x360ce");
 	if (!ini.Load(inipath)) return;
@@ -365,8 +365,8 @@ bool Config::ReadPadConfig(Controller* pController, const std::string& section, 
 	 * is byond my knowledge of XInput at this time so hopefully someone else
 	 * can add it. - JBIENZ 2015-04-16
 	 ******************************************************************************/
-	// Pass through index
-	// TODO: Auto Detect during initialization
+	 // Pass through index
+	 // TODO: Auto Detect during initialization
 	pIniFile->Get<u32>(section, "PassThroughIndex", &pController->m_passthroughindex, 0);
 
 	// Device type
@@ -472,7 +472,7 @@ void Config::ReadPadMapping(Controller* pController, const std::string& section,
 		pIniFile->Get(section, "AxisToDPadDeadZone", &pMapping->Axis[i].a2ddeadzone);
 		pIniFile->Get(section, "AxisToDPadOffset", &pMapping->Axis[i].a2doffset);
 
-	
+
 		// Axis to button mappings
 		std::string posMap;
 		if (pIniFile->Get(section, axisBNames[i * 2], &posMap))
@@ -500,3 +500,12 @@ void Config::ReadPadMapping(Controller* pController, const std::string& section,
 	}
 }
 
+void Config::MakeRerouteGamepad(int id)
+{
+	std::shared_ptr<Controller> controller(new Controller(id));
+	Controller* pController = controller.get();
+
+	Mapping pMapping = pController->m_mapping;
+	pMapping.Button[0].type = DIGITAL;
+	pMapping.Button[0].id = 0;
+}

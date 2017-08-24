@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "version.h"
 
@@ -57,7 +57,7 @@ public:
 		if (FAILED(ret) || !m_pDirectInput)
 		{
 			PrintLog("DirectInput cannot be initialized");
-			MessageBox(NULL, "DirectInput cannot be initialized", "x360ce - Error", MB_ICONERROR);
+			MessageBox(NULL, L"DirectInput cannot be initialized", L"x360ce - Error", MB_ICONERROR);
 			exit(ret);
 		}
 	}
@@ -81,14 +81,14 @@ public:
 			return ERROR_DEVICE_NOT_CONNECTED;
 
 		// Invalid dwUserIndex
-		if (!(dwUserIndex < XUSER_MAX_COUNT))
-			return ERROR_BAD_ARGUMENTS;
+		//if (!(dwUserIndex < XUSER_MAX_COUNT)) //hahahahah we have no limits
+			//return ERROR_BAD_ARGUMENTS;
 
 		ControllerBase* pController = nullptr;
 		for (auto it = m_controllers.begin(); it != m_controllers.end(); ++it)
 		{
 			// Return the first controller that matches
-			if ((*it)->m_user == dwUserIndex)
+			if ((*it)->isFake)
 			{
 				pController = (*it).get();
 				break;
@@ -105,8 +105,8 @@ public:
 			return ERROR_SUCCESS;
 		}
 
-		if (pController->m_failcount > 20)
-			return ERROR_DEVICE_NOT_CONNECTED;
+		//if (pController->m_failcount > 20)
+		//return ERROR_DEVICE_NOT_CONNECTED;
 
 		if (!pController->Initalized())
 		{
@@ -124,7 +124,9 @@ public:
 		}
 
 		if (!pController->Initalized())
+		{
 			return ERROR_DEVICE_NOT_CONNECTED;
+		}
 		else return ERROR_SUCCESS;
 	}
 

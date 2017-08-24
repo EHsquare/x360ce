@@ -544,6 +544,5 @@ HRESULT WINAPI HookDI::HookDirectInput8Create(HINSTANCE hinst, DWORD dwVersion, 
 void InputHook::HookDI()
 {
 	PrintLog("Hooking DirectInput");
-
 	IH_CreateHook(DirectInput8Create, HookDI::HookDirectInput8Create, &HookDI::TrueDirectInput8Create);
 }

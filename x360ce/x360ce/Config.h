@@ -1,4 +1,6 @@
-#pragma once
+﻿#pragma once
+
+#include "Config.h"
 
 class Controller;
 
@@ -123,6 +125,8 @@ public:
 	static const char* const triggerBNames[];
 
 	void ReadConfig();
+
+	void MakeRerouteGamepad(int);
 
 private:
 	bool ReadPadConfig(Controller* pController, const std::string& section, IniFile* pIniFile);

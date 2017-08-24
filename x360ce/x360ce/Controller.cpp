@@ -38,7 +38,7 @@ bool Controller::Initalized()
 	return m_pDevice != nullptr;
 }
 
-BOOL CALLBACK Controller::EnumObjectsCallback(LPCDIDEVICEOBJECTINSTANCE lpddoi, LPVOID pvRef)
+BOOL CALLBACK Controller::EnumObjectsCallback(LPCDIDEVICEOBJECTINSTANCEA lpddoi, LPVOID pvRef)
 {
 	Controller *gp = (Controller*)pvRef;
 
@@ -581,17 +581,21 @@ HRESULT Controller::UpdateState()
 {
 	HRESULT hr = E_FAIL;
 
-	if ((!m_pDevice)) return E_FAIL;
-
-	m_pDevice->Poll();
-	hr = m_pDevice->GetDeviceState(sizeof(DIJOYSTATE2), &m_state);
-
-	if (FAILED(hr))
+	if ((!m_pDevice))
 	{
-		PrintLog("[PAD%d] Device Reacquired", m_user + 1);
-		hr = m_pDevice->Acquire();
+		return E_FAIL;
 	}
 
+	hr = m_pDevice->Poll();
+	if (FAILED(hr))
+	{
+		hr = m_pDevice->Acquire();
+		while (hr == DIERR_INPUTLOST)
+			hr = m_pDevice->Acquire();
+		return S_OK;
+	}
+
+	hr = m_pDevice->GetDeviceState(sizeof(DIJOYSTATE2), &m_state);
 	return hr;
 }
 
@@ -625,9 +629,6 @@ DWORD Controller::CreateDevice()
 	else
 		PrintLog("[PAD%d] Device created", m_user + 1);
 
-	hr = m_pDevice->SetDataFormat(&c_dfDIJoystick2);
-	if (FAILED(hr)) PrintLog("[PAD%d] SetDataFormat failed with code HR = %X", m_user + 1, hr);
-
 	HRESULT setCooperativeLevelResult = m_pDevice->SetCooperativeLevel(ControllerManager::Get().GetWindow(), DISCL_EXCLUSIVE | DISCL_BACKGROUND);
 	if (FAILED(setCooperativeLevelResult))
 	{
@@ -637,6 +638,9 @@ DWORD Controller::CreateDevice()
 		setCooperativeLevelResult = m_pDevice->SetCooperativeLevel(ControllerManager::Get().GetWindow(), DISCL_NONEXCLUSIVE | DISCL_BACKGROUND);
 		if (FAILED(setCooperativeLevelResult)) PrintLog("[PAD%d] SetCooperativeLevel failed with code HR = %X", m_user + 1, setCooperativeLevelResult);
 	}
+
+	hr = m_pDevice->SetDataFormat(&c_dfDIJoystick2);
+	if (FAILED(hr)) PrintLog("[PAD%d] SetDataFormat failed with code HR = %X", m_user + 1, hr);
 
 	DIPROPDWORD dipdw;
 	dipdw.diph.dwSize = sizeof(DIPROPDWORD);
@@ -652,7 +656,10 @@ DWORD Controller::CreateDevice()
 	else
 		PrintLog("[PAD%d] Detected axis count: %d", m_user + 1, m_axiscount);
 
-	if (m_useforce) m_useforce = m_ForceFeedback->IsSupported();
+	if (m_useforce)
+	{
+		m_useforce = m_ForceFeedback->IsSupported();
+	}
 
 	hr = m_pDevice->Acquire();
 	if (SUCCEEDED(hr))

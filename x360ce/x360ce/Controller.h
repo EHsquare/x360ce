@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <dinput.h>
 #include "Config.h"
@@ -24,7 +24,7 @@ public:
 	GUID m_instanceid;
 
 private:
-	static BOOL CALLBACK EnumObjectsCallback(const DIDEVICEOBJECTINSTANCE* pdidoi, VOID* pContext);
+	static BOOL CALLBACK EnumObjectsCallback(LPCDIDEVICEOBJECTINSTANCEA pdidoi, LPVOID pContext);
 
 	bool ButtonPressed(u32 buttonidx);
 	HRESULT UpdateState();

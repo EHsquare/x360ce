@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <dinput.h>
 #include "Config.h"
@@ -30,6 +30,7 @@ public:
 	virtual DWORD SetState(XINPUT_VIBRATION* pVibration);
 	virtual DWORD WaitForGuideButton(DWORD dwFlag, LPVOID pVoid);
 
+	bool isFake = false;
 
 	Config::Mapping m_mapping;
 	u32 m_user;
