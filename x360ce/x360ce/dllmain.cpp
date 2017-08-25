@@ -9,6 +9,7 @@
 
 #include "ControllerManager.h"
 #include "InputHookManager.h"
+#include "XInputModuleManager.h"
 
 #include <hidsdi.h>
 #include <atlstr.h>  
@@ -422,7 +423,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		// that call to ever be recognized by the game
 		if (Globals::blockMouseEvents)
 		{
-		return 0;
+			return 0;
 
 	case WM_IME_SETCONTEXT:
 		return 0;
@@ -684,6 +685,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
 	}
 
+		}
 	}
 }
 
@@ -738,7 +740,15 @@ void HandleForceFocus()
 				{
 					GameHWND = wnd;
 					TrueWndProc = (WNDPROC)SetWindowLongPtr(GameHWND, GWL_WNDPROC, (LONG_PTR)&HookWndProc);
-
+					if (TrueWndProc == nullptr)
+					{
+						PrintLog("!!!COULD NOT SET WINDOW PROCEDURE!!!");
+					}
+					else
+					{
+						PrintLog("SetWindowLongPtr", (long)TrueWndProc);
+						PrintLog("Hooked to Game Window %u", (long)TrueWndProc);
+					}
 					HMODULE mod = LoadLibrary(L"user32");
 
 					/*void* getWindowLongWPtr = GetProcAddress(mod, "GetWindowLongW");
@@ -851,7 +861,7 @@ DWORD WINAPI HookThread()
 		}
 		else if (Globals::dInputEnabled && Globals::dInputLibrary != 0)
 		{
-			
+
 #ifdef NOT_COMPILE
 			PrintLog("DInput Hook Enabled");
 
@@ -1080,79 +1090,79 @@ VOID InitInstance()
 				{
 				default:
 				case 0:
+				{
+					for (u32 i = 0; i < _countof(pMapping->Button); ++i)
 					{
-						for (u32 i = 0; i < _countof(pMapping->Button); ++i)
-						{
-							pMapping->Button[i].type = Config::DIGITAL;
-							pMapping->Button[i].id = i + 1;
-						}
-
-						pMapping->DpadPOV = 1;
-
-						// left trigger
-						pMapping->Trigger[0].type = Config::HAXIS;
-						pMapping->Trigger[0].id = 3;
-						// right trigger
-						pMapping->Trigger[1].type = Config::HAXIS;
-						pMapping->Trigger[1].id = -3;
-
-						// left stick x
-						pMapping->Axis[0].analogType = Config::HAXIS;
-						pMapping->Axis[0].id = 1;
-						// y
-						pMapping->Axis[1].analogType = Config::HAXIS;
-						pMapping->Axis[1].id = -2;
-
-						// right stick x
-						pMapping->Axis[2].analogType = Config::HAXIS;
-						pMapping->Axis[2].id = 4;
-						// y
-						pMapping->Axis[3].analogType = Config::HAXIS;
-						pMapping->Axis[3].id = -5;
+						pMapping->Button[i].type = Config::DIGITAL;
+						pMapping->Button[i].id = i + 1;
 					}
-					break;
+
+					pMapping->DpadPOV = 1;
+
+					// left trigger
+					pMapping->Trigger[0].type = Config::HAXIS;
+					pMapping->Trigger[0].id = 3;
+					// right trigger
+					pMapping->Trigger[1].type = Config::HAXIS;
+					pMapping->Trigger[1].id = -3;
+
+					// left stick x
+					pMapping->Axis[0].analogType = Config::HAXIS;
+					pMapping->Axis[0].id = 1;
+					// y
+					pMapping->Axis[1].analogType = Config::HAXIS;
+					pMapping->Axis[1].id = -2;
+
+					// right stick x
+					pMapping->Axis[2].analogType = Config::HAXIS;
+					pMapping->Axis[2].id = 4;
+					// y
+					pMapping->Axis[3].analogType = Config::HAXIS;
+					pMapping->Axis[3].id = -5;
+				}
+				break;
 				case 2: // PS4
+				{
+					for (u32 i = 0; i < _countof(pMapping->Button); ++i)
 					{
-						for (u32 i = 0; i < _countof(pMapping->Button); ++i)
-						{
-							pMapping->Button[i].type = Config::DIGITAL;
-						}
-
-						pMapping->Button[0].id = 2; // A  - Cross
-						pMapping->Button[1].id = 3; // B  - Circle
-						pMapping->Button[2].id = 1; // X  - Square
-						pMapping->Button[3].id = 4; // Y  - Triangle
-						pMapping->Button[4].id = 5; // LB - L1
-						pMapping->Button[5].id = 6; // RB - R1
-						pMapping->Button[6].id = 9; // Back
-						pMapping->Button[7].id = 10; // Start
-						pMapping->Button[8].id = 11; // Left Stick Button
-						pMapping->Button[9].id = 12; // Right Stick Button
-
-						pMapping->DpadPOV = 1;
-
-						// left trigger
-						pMapping->Trigger[0].type = Config::AXIS;
-						pMapping->Trigger[0].id = 4;
-						// right trigger
-						pMapping->Trigger[1].type = Config::AXIS;
-						pMapping->Trigger[1].id = 5;
-
-						// left stick x
-						pMapping->Axis[0].analogType = Config::HAXIS;
-						pMapping->Axis[0].id = 1;
-						// y
-						pMapping->Axis[1].analogType = Config::HAXIS;
-						pMapping->Axis[1].id = -2;
-
-						// right stick x
-						pMapping->Axis[2].analogType = Config::HAXIS;
-						pMapping->Axis[2].id = 3;
-						// y
-						pMapping->Axis[3].analogType = Config::HAXIS;
-						pMapping->Axis[3].id = -6;
+						pMapping->Button[i].type = Config::DIGITAL;
 					}
-					break;
+
+					pMapping->Button[0].id = 2; // A  - Cross
+					pMapping->Button[1].id = 3; // B  - Circle
+					pMapping->Button[2].id = 1; // X  - Square
+					pMapping->Button[3].id = 4; // Y  - Triangle
+					pMapping->Button[4].id = 5; // LB - L1
+					pMapping->Button[5].id = 6; // RB - R1
+					pMapping->Button[6].id = 9; // Back
+					pMapping->Button[7].id = 10; // Start
+					pMapping->Button[8].id = 11; // Left Stick Button
+					pMapping->Button[9].id = 12; // Right Stick Button
+
+					pMapping->DpadPOV = 1;
+
+					// left trigger
+					pMapping->Trigger[0].type = Config::AXIS;
+					pMapping->Trigger[0].id = 4;
+					// right trigger
+					pMapping->Trigger[1].type = Config::AXIS;
+					pMapping->Trigger[1].id = 5;
+
+					// left stick x
+					pMapping->Axis[0].analogType = Config::HAXIS;
+					pMapping->Axis[0].id = 1;
+					// y
+					pMapping->Axis[1].analogType = Config::HAXIS;
+					pMapping->Axis[1].id = -2;
+
+					// right stick x
+					pMapping->Axis[2].analogType = Config::HAXIS;
+					pMapping->Axis[2].id = 3;
+					// y
+					pMapping->Axis[3].analogType = Config::HAXIS;
+					pMapping->Axis[3].id = -6;
+				}
+				break;
 				}
 
 				// Not a combined device. Just add like normal.
@@ -1180,6 +1190,13 @@ VOID InitInstance()
 
 	MH_Initialize();
 	tmpHandle = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)&HookThread, 0, 0, 0);
+
+	if (Globals::xInputEnabled)
+	{
+		// grab gamepad state
+		XINPUT_STATE state;
+		XInputModuleManager::Get().XInputGetState(0, &state);
+	}
 }
 
 extern "C" VOID WINAPI Reset()

@@ -219,6 +219,8 @@ void Config::ReadConfig()
 		once_flag = true;
 	}
 
+	return;
+
 	// Is combining enabled at a global level?
 	ini.Get("Options", "CombineEnabled", &combineEnabled);
 

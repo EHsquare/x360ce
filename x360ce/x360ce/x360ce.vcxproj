@@ -127,12 +127,12 @@
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
     </Link>
     <PreBuildEvent>
-      <Command>genrev.cmd
-</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>del /f "C:\Dev\nucleuscoop\nucleuscoop\Master\NucleusCoopTool\bin\Debug\Data\550\Instance1\bin\xinput1_3.dll"
-copy "$(OutDir)xinput1_3.dll" "C:\Dev\nucleuscoop\nucleuscoop\Master\NucleusCoopTool\bin\Debug\Data\550\Instance1\bin\xinput1_3.dll"</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <string>
 
@@ -40,10 +40,10 @@ public:
 		std::string current_module;
 		ModuleFileName(&current_module, CurrentModule());
 
-		bool bHookLL = false;
+		bool bHookLL = true;
 
-		bHookLL = InputHookManager::Get().GetInputHook().GetState(InputHook::HOOK_LL);
-		if (bHookLL) InputHookManager::Get().GetInputHook().DisableHook(InputHook::HOOK_LL);
+		//bHookLL = InputHookManager::Get().GetInputHook().GetState(InputHook::HOOK_LL);
+		//if (bHookLL) InputHookManager::Get().GetInputHook().DisableHook(InputHook::HOOK_LL);
 
 		std::string loaded_module_path;
 		m_module = LoadLibrarySystem(current_module, &loaded_module_path);
@@ -62,7 +62,8 @@ public:
 			PrintLog("Loaded \"%s\"", loaded_module_path.c_str());
 		}
 
-		if (bHookLL) InputHookManager::Get().GetInputHook().EnableHook(InputHook::HOOK_LL);
+		//if (bHookLL) 
+		InputHookManager::Get().GetInputHook().EnableHook(InputHook::HOOK_LL);
 
 		// XInput 1.3 and older functions
 		StoreProcAddress("XInputGetState", &XInputGetState);
