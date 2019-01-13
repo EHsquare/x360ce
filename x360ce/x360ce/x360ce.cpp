@@ -34,6 +34,8 @@
 
 extern "C" DWORD WINAPI XInputGetState(DWORD dwUserIndex, XINPUT_STATE* pState)
 {
+	//PrintLog(("XInputGetState: " + std::to_string(dwUserIndex)).c_str());
+
 	if (Globals::enableMKBInput)
 	{
 		if (pState)

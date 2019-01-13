@@ -14,6 +14,7 @@
     <ProjectGuid>{7BC57D19-1819-42D7-8F3B-DFF5ED66C750}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>ditool</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

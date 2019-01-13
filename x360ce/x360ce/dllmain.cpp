@@ -14,6 +14,10 @@
 #include <hidsdi.h>
 #include <atlstr.h>  
 #include <dinputd.h>
+#include <regex>
+#include <codecvt>
+
+using namespace std;
 
 HANDLE tmpHandle;
 
@@ -158,9 +162,19 @@ extern "C" long WINAPI HookGetWindowLongW(HWND wnd, int nIndex)
 	return result;
 }
 
+LONG_PTR gameSetWindowLongW = 0;
+
 extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong)
 {
-	return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
+	if (nIndex == GWL_WNDPROC) {
+		// save the actual game setWindowLongW
+		gameSetWindowLongW = dwNewLong;
+	}
+
+	// set last error to 0 to return 0 and no app think its a failure
+	SetLastError(0);
+	return 0;
+	//return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
 }
 
 int SetX = 0;
@@ -182,6 +196,20 @@ extern "C" BOOL WINAPI HookGetCursorPos(LPPOINT pt)
 
 extern "C" BOOL WINAPI HookClipCursor(RECT* lpRect)
 {
+	//if (Globals::clipMouse)
+	//{
+	//	RECT r;
+	//	r.left = Globals::windowX;
+	//	r.right = Globals::windowX + Globals::resWidth;
+	//	r.top = Globals::windowY;
+	//	r.bottom = Globals::windowY + Globals::resHeight;
+
+	//	/*lpRect->left = Globals::windowX;
+	//	lpRect->right = Globals::windowX + Globals::resWidth;
+	//	lpRect->top = Globals::windowY;
+	//	lpRect->bottom = Globals::windowY + Globals::resHeight;*/
+	//}
+
 	return true;
 }
 
@@ -374,25 +402,33 @@ HRESULT __fastcall HookCDIDev_SetDataFormat(int* a1, int a2, int a3, int a4, int
 
 LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+#ifdef _DEBUG
+	//PrintLog(("Event: " + std::to_string(message)).c_str());
+#endif
+
 	if (!Globals::hasSetWindow && Globals::hasHooked)
 	{
 		Globals::hasSetWindow = true;
 
-		DWORD width = Globals::resWidth;
-		DWORD height = Globals::resHeight;
-		if (width > 32 && height > 32)
-		{
-			SetWindowPos(GameHWND, 0, 0, 0, width, height, SWP_NOZORDER | SWP_NOMOVE);
-			PrintLog(("Set window size to: " + std::to_string(width) + "x" + std::to_string(height)).c_str());
+		if (Globals::fixResolution) {
+			DWORD width = Globals::resWidth;
+			DWORD height = Globals::resHeight;
+			if (width > 32 && height > 32)
+			{
+				SetWindowPos(GameHWND, 0, 0, 0, width, height, SWP_NOZORDER | SWP_NOMOVE);
+				PrintLog(("Set window size to: " + std::to_string(width) + "x" + std::to_string(height)).c_str());
+			}
 		}
 
-		DWORD x = Globals::windowX;
-		DWORD y = Globals::windowY;
+		if (Globals::fixPosition) {
+			DWORD x = Globals::windowX;
+			DWORD y = Globals::windowY;
 
-		if (x != 0 || y != 0)
-		{
-			SetWindowPos(GameHWND, 0, x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
-			PrintLog(("Set window position to: " + std::to_string(x) + ":" + std::to_string(y)).c_str());
+			if (x != 0 || y != 0)
+			{
+				SetWindowPos(GameHWND, 0, x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+				PrintLog(("Set window position to: " + std::to_string(x) + ":" + std::to_string(y)).c_str());
+			}
 		}
 	}
 
@@ -400,30 +436,30 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	{
 		//PrintLog(("Event: " + std::to_string(message)).c_str());
 		//return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
-
 	case WM_INPUT: // raw mouse input?
 		//DefWindowProc(hWnd, message, 0, lParam);
-		if (Globals::blockInputEvents)
+		if (Globals::enableMKBInput)
 		{
-			return 0;
+			break;
 		}
 		else
 		{
-			return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
+			return 0;
 		}
 
 	case WM_NCACTIVATE:
 		// Sent to a window when its nonclient area needs to be changed to indicate an active or inactive state.
 		// Faked: wParam is always true, so the window always looks active
-		CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
+		return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
 		return 0;
 
 	case WM_NCHITTEST:
 		// System is checking if the mouse is inside the game screen, but we dont want
 		// that call to ever be recognized by the game
-		if (Globals::blockMouseEvents)
+		if (!Globals::enableMKBInput)
 		{
 			return 0;
+		}
 
 	case WM_IME_SETCONTEXT:
 		return 0;
@@ -457,10 +493,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_VSCROLLCLIPBOARD:
 	case WM_HSCROLL:
 	case WM_NCMOUSEHOVER:
-	case WM_MOUSEMOVE:
 	case WM_NCLBUTTONDOWN:
-	case WM_KEYDOWN:
-	case WM_KEYUP:
 	case WM_WTSSESSION_CHANGE:
 	case WM_XBUTTONDBLCLK:
 	case WM_XBUTTONDOWN:
@@ -470,7 +503,6 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_MBUTTONDOWN:
 	case WM_MBUTTONUP:
 	case WM_MOUSEACTIVATE:
-	case WM_MOUSEHOVER:
 	case WM_MOUSELAST:
 	case WM_MOUSELEAVE:
 	case WM_MOUSEWHEEL:
@@ -489,48 +521,55 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_NCXBUTTONDOWN:
 	case WM_NCXBUTTONUP:
 	case WM_CHARTOITEM:
-		if (Globals::blockMouseEvents)
+	case WM_MOUSEMOVE:
+	case WM_MOUSEHOVER:
+		// clip everytime, TODO: benchmark this
+		if (Globals::clipMouse) 
 		{
-			return 0;
+			RECT r;
+			r.left = Globals::windowX;
+			r.right = Globals::windowX + Globals::resWidth;
+			r.top = Globals::windowY;
+			r.bottom = Globals::windowY + Globals::resHeight;
+			TrueClipCursor(&r);
+		}
+
+		if (Globals::enableMKBInput)
+		{
+			break;
 		}
 		else
 		{
-			//#ifdef _DEBUG
-			PrintLog(("Event: " + std::to_string(message)).c_str());
-			//#endif
-			return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
+			return 0;
 		}
 
+
 		// keyboard
+	case WM_KEYDOWN:
+	case WM_KEYUP:
 	case WM_CHAR:
 	case WM_IME_KEYDOWN:
 	case WM_IME_KEYUP:
 	case WM_SYSKEYDOWN:
 	case WM_SYSKEYUP:
-		if (Globals::blockKeyboardEvents)
+		if (Globals::enableMKBInput)
 		{
-			return 0;
+			break;
 		}
 		else
 		{
-			//ifdef _DEBUG
-			PrintLog(("Event: " + std::to_string(message)).c_str());
-			//#endif
-			return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
+			return 0;
 		}
 
-	default:
+
 	case WM_SIZE:
 	case WM_SIZING:
-	case WM_GETICON:
 	case WM_SYSCOMMAND:
 	case WM_GETMINMAXINFO:
 	case WM_ENTERSIZEMOVE:
 	case WM_MOVING:
 	case WM_MOVE:
 	case WM_EXITSIZEMOVE:
-	case WM_CLOSE:
-	case WM_DESTROY:
 	case WM_NCDESTROY:
 	case WM_CANCELMODE:
 	case WM_ENABLE:
@@ -589,7 +628,6 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_IME_COMPOSITIONFULL:
 	case WM_IME_CONTROL:
 	case WM_IME_ENDCOMPOSITION:
-
 	case WM_IME_REQUEST:
 	case WM_IME_SELECT:
 	case WM_IME_STARTCOMPOSITION:
@@ -626,7 +664,6 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_NOTIFY:
 	case WM_NOTIFYFORMAT:
 	case WM_NULL:
-	case WM_PAINT:
 	case WM_PAINTCLIPBOARD:
 	case WM_PAINTICON:
 	case WM_PALETTECHANGED:
@@ -650,14 +687,10 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_SETFONT:
 	case WM_SETHOTKEY:
 	case WM_SETICON:
-	case WM_SETREDRAW:
-	case WM_SETTEXT:
 	case WM_SETTINGCHANGE:
 	case WM_SHOWWINDOW:
 	case WM_SIZECLIPBOARD:
 	case WM_SPOOLERSTATUS:
-	case WM_STYLECHANGED:
-	case WM_STYLECHANGING:
 	case WM_SYNCPAINT:
 	case WM_SYSCHAR:
 	case WM_SYSCOLORCHANGE:
@@ -677,15 +710,48 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_DEADCHAR:
 	case WM_CREATE:
 	case WM_CHILDACTIVATE:
-	case WM_QUIT:
 	{
-		//#ifdef _DEBUG
-		PrintLog(("Event: " + std::to_string(message)).c_str());
-		//#endif
-		return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
+		PrintLog(("Unknown: " + std::to_string(message)).c_str());
+		break;
 	}
 
+	case WM_STYLECHANGED:
+	case WM_STYLECHANGING:
+	default: {
+		// WM_NCUAHDRAWCAPTION
+		return 0;
+		PrintLog(("Defaulted: " + std::to_string(message)).c_str());
+		break;
+	}
+
+	case WM_SETTEXT:
+	case WM_SETREDRAW:
+	case WM_GETICON:
+	case WM_PAINT:
+		break;
+
+		// end of application
+	case WM_QUIT:
+	case WM_DESTROY:
+	case WM_CLOSE:
+		//WNDPROC proc = (WNDPROC)gameSetWindowLongW;
+		//return CallWindowProc(proc, hWnd, message, wParam, lParam);
+
+		// specific scenario
+		// set the original
+		if (gameSetWindowLongW == 0) {
+			return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
 		}
+		else {
+			break;
+		}
+	}
+
+	if (gameSetWindowLongW == 0) {
+		return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
+	}
+	else {
+		return CallWindowProc((WNDPROC)gameSetWindowLongW, hWnd, message, wParam, lParam);
 	}
 }
 
@@ -710,14 +776,17 @@ void HandleForceFocus()
 {
 	if (Globals::forceFocus)
 	{
-		std::wstring* wndName = Globals::forceFocusWindowName;
-		if (wndName == nullptr)
+		std::wstring* wndRegex = Globals::forceFocusWindowRegex;
+		if (wndRegex == nullptr)
 		{
 			return;
 		}
 
 		WCHAR* str = new WCHAR[50];
 		memset(str, 0, sizeof(WCHAR) * 50);
+
+		// ignore upper/lower case
+		wregex gameName(wndRegex->c_str(), regex_constants::icase);
 
 		while (GameHWND == nullptr)
 		{
@@ -736,8 +805,18 @@ void HandleForceFocus()
 				GetWindowText(wnd, str, 50);
 
 				std::wstring stStr = std::wstring(str);
-				if (ComputeLevenshteinDistance(stStr, *wndName) < 2) // good enough
+				if (stStr.empty())
 				{
+					continue;
+				}
+
+				//if (ComputeLevenshteinDistance(stStr, *wndName) < 2) // good enough
+				if (regex_search(stStr, gameName)) // regex
+				{
+					wstring_convert<codecvt_utf8_utf16<wchar_t>> convert;
+					string str = convert.to_bytes(stStr);
+					PrintLog(str.c_str());
+
 					GameHWND = wnd;
 					TrueWndProc = (WNDPROC)SetWindowLongPtr(GameHWND, GWL_WNDPROC, (LONG_PTR)&HookWndProc);
 					if (TrueWndProc == nullptr)
@@ -746,7 +825,6 @@ void HandleForceFocus()
 					}
 					else
 					{
-						PrintLog("SetWindowLongPtr", (long)TrueWndProc);
 						PrintLog("Hooked to Game Window %u", (long)TrueWndProc);
 					}
 					HMODULE mod = LoadLibrary(L"user32");
@@ -754,6 +832,7 @@ void HandleForceFocus()
 					/*void* getWindowLongWPtr = GetProcAddress(mod, "GetWindowLongW");
 					IH_CreateHook(getWindowLongWPtr, HookGetWindowLongW, reinterpret_cast<LPVOID*>(&TrueGetWindowLongW));
 					IH_EnableHook(getWindowLongWPtr);*/
+
 
 					void* getForegroundPtr = GetProcAddress(mod, "GetForegroundWindow");
 					IH_CreateHook(getForegroundPtr, HookGetForegroundWindow, reinterpret_cast<LPVOID*>(&TrueGetForegroundWindow));
@@ -767,9 +846,10 @@ void HandleForceFocus()
 					IH_CreateHook(setActivePtr, HookSetActiveWindow, reinterpret_cast<LPVOID*>(&TrueSetActiveWindow));
 					IH_EnableHook(setActivePtr);
 
-					/*void* setWindowLongWPtr = GetProcAddress(mod, "SetWindowLongW");
+					// override SetWindowLongPtr so the game cant replace our function
+					void* setWindowLongWPtr = GetProcAddress(mod, "SetWindowLongW");
 					IH_CreateHook(setWindowLongWPtr, HookSetWindowLongW, reinterpret_cast<LPVOID*>(&TrueSetWindowLongW));
-					IH_EnableHook(setWindowLongWPtr);*/
+					IH_EnableHook(setWindowLongWPtr);
 
 					void* getFocusPtr = GetProcAddress(mod, "GetFocus");
 					IH_CreateHook(getFocusPtr, HookGetFocus, reinterpret_cast<LPVOID*>(&TrueGetFocus));
@@ -778,6 +858,10 @@ void HandleForceFocus()
 					void* getActivePtr = GetProcAddress(mod, "GetActiveWindow");
 					IH_CreateHook(getActivePtr, HookGetActiveWindow, reinterpret_cast<LPVOID*>(&TrueGetActiveWindow));
 					IH_EnableHook(getActivePtr);
+
+					void* clipCursorPtr = GetProcAddress(mod, "ClipCursor");
+					IH_CreateHook(clipCursorPtr, HookClipCursor, reinterpret_cast<LPVOID*>(&TrueClipCursor));
+					IH_EnableHook(clipCursorPtr);
 
 					if (!Globals::enableMKBInput)
 					{
@@ -788,10 +872,6 @@ void HandleForceFocus()
 						void* getCursorPosPtr = GetProcAddress(mod, "GetCursorPos");
 						IH_CreateHook(getCursorPosPtr, HookGetCursorPos, reinterpret_cast<LPVOID*>(&TrueGetCursorPos));
 						IH_EnableHook(getCursorPosPtr);
-
-						void* clipCursorPtr = GetProcAddress(mod, "ClipCursor");
-						IH_CreateHook(clipCursorPtr, HookClipCursor, reinterpret_cast<LPVOID*>(&TrueClipCursor));
-						IH_EnableHook(clipCursorPtr);
 					}
 
 					PrintLog("Hooked to game window");
@@ -861,10 +941,8 @@ DWORD WINAPI HookThread()
 		}
 		else if (Globals::dInputEnabled && Globals::dInputLibrary != 0)
 		{
-
 #ifdef NOT_COMPILE
 			PrintLog("DInput Hook Enabled");
-
 			//void* cDIDev_GetDeviceStatePtr = (void*)((DWORD)directInputCreateAPtr - 20032);// other version of Windows 10??
 			void* cDIDev_GetDeviceStatePtr = (void*)((DWORD)directInputCreateAPtr + cDIDev_GetDeviceStateOffset);
 			void* cDIObj_CreateDeviceWPtr = (void*)((DWORD)directInputCreateAPtr + cDIObj_CreateDeviceWOffset);
@@ -901,8 +979,8 @@ DWORD WINAPI HookThread()
 
 			IH_CreateHook(cDIObj_CreateDeviceW, HookCDIObj_EnumObjectsW, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
 			IH_EnableHook(cDIObj_CreateDeviceW);*/
+			}
 		}
-	}
 
 	HandleForceFocus();
 
@@ -967,7 +1045,7 @@ DWORD WINAPI HookThread()
 	//IH_EnableHook(getDeviceStatePtr);
 
 	return 0;
-}
+	}
 
 std::wstring* KeepString(std::string str)
 {
@@ -1172,19 +1250,24 @@ VOID InitInstance()
 	}
 
 	ini.Get("Options", "ForceFocus", &Globals::forceFocus);
-	std::string forceFocusWindowName;
-	ini.Get("Options", "ForceFocusWindowName", &forceFocusWindowName);
-	Globals::forceFocusWindowName = KeepString(forceFocusWindowName);
+	std::string forceFocusWindowRegex;
+	ini.Get("Options", "ForceFocusWindowRegex", &forceFocusWindowRegex);
+	Globals::forceFocusWindowRegex = KeepString(forceFocusWindowRegex);
 
 	ini.Get("Options", "WindowX", &Globals::windowX);
 	ini.Get("Options", "WindowY", &Globals::windowY);
 
 	ini.Get("Options", "ResWidth", &Globals::resWidth);
 	ini.Get("Options", "ResHeight", &Globals::resHeight);
+	ini.Get("Options", "ResHeight", &Globals::resHeight);
 
-	ini.Get("Options", "BlockInputEvents", &Globals::blockInputEvents);
-	ini.Get("Options", "BlockMouseEvents", &Globals::blockMouseEvents);
-	ini.Get("Options", "BlockKeyboardEvents", &Globals::blockKeyboardEvents);
+	ini.Get("Options", "FixPosition", &Globals::fixPosition);
+	ini.Get("Options", "FixResolution", &Globals::fixResolution);
+	ini.Get("Options", "ClipMouse", &Globals::clipMouse);
+
+	//ini.Get("Options", "BlockInputEvents", &Globals::blockInputEvents);
+	//ini.Get("Options", "BlockMouseEvents", &Globals::blockMouseEvents);
+	//ini.Get("Options", "BlockKeyboardEvents", &Globals::blockKeyboardEvents);
 
 	ini.Get("Options", "EnableMKBInput", &Globals::enableMKBInput);
 

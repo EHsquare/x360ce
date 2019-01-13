@@ -22,19 +22,23 @@ DWORD Globals::xInputPlayerId = -1;
 bool Globals::xInputReRouteEnabled = false;
 DWORD Globals::xInputReRouteTemplate = 0;
 
-bool Globals::blockInputEvents = true;
-bool Globals::blockMouseEvents = true;
-bool Globals::blockKeyboardEvents = true;
+//bool Globals::blockInputEvents = true;
+//bool Globals::blockMouseEvents = true;
+//bool Globals::blockKeyboardEvents = true;
 
 bool Globals::enableMKBInput = true;
 
 bool Globals::forceFocus = false;
-std::wstring* Globals::forceFocusWindowName = nullptr;
+std::wstring* Globals::forceFocusWindowRegex = nullptr;
 
 DWORD Globals::windowY = 0;
 DWORD Globals::windowX = 0;
 DWORD Globals::resWidth = 0;
 DWORD Globals::resHeight = 0;
+
+bool Globals::fixResolution = false;
+bool Globals::fixPosition = false;
+bool Globals::clipMouse = false;
 
 bool Globals::hasHooked = false;
 bool Globals::hasSetWindow = false;
