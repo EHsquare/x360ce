@@ -32,6 +32,9 @@ public:
 	static bool clipMouse;
 
 	static bool hasHooked;
+
 	static bool hasSetPosition;
 	static bool hasSetSize;
+	static bool hasSetStyle;
+	static bool hasSetEverything;
 };

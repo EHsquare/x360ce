@@ -25,7 +25,11 @@ LONG_PTR gameSetWindowLongW = 0;
 bool SetGamepad = false;
 bool fixingWindow = false;
 bool justFixedWindow = false;
+bool changingStyle = false;
 POINT titleSize;
+LONG windowStyle = 0;
+LONG windowExStyle = 0;
+LONG_PTR HookWndProcPtr = 0;
 
 //typedef NTSTATUS(WINAPI* HidP_GetButtonCapsProc)(_In_ HIDP_REPORT_TYPE, _Out_ PHIDP_BUTTON_CAPS, _Inout_ PUSHORT, _In_ PHIDP_PREPARSED_DATA);
 //typedef NTSTATUS(WINAPI* HidP_GetUsagesProc)(_In_    HIDP_REPORT_TYPE, _In_    USAGE, _In_    USHORT, _Out_   PUSAGE, _Inout_ PULONG, _In_    PHIDP_PREPARSED_DATA, _Out_   PCHAR, _In_    ULONG);
@@ -161,6 +165,7 @@ SetWindowLongWProc TrueSetWindowLongW = nullptr;
 ClipCursorProc TrueClipCursor = nullptr;
 GetRawInputDataProc TrueGetRawInputData = nullptr;
 
+
 int SetX = 0;
 int SetY = 0;
 
@@ -175,10 +180,15 @@ extern "C" long WINAPI HookGetWindowLongW(HWND wnd, int nIndex)
 {
 	if (wnd == GameHWND)
 	{
-		return 0;
+		if (nIndex == GWL_STYLE) {
+			return windowStyle;
+		}
+		else if (nIndex == GWL_EXSTYLE) {
+			return windowExStyle;
+		}
 	}
-	long result = TrueGetWindowLongW(wnd, nIndex);
-	return result;
+
+	return TrueGetWindowLongW(wnd, nIndex);
 }
 
 extern "C" BOOL WINAPI HookSetCursorPos(int x, int y)
@@ -242,13 +252,6 @@ extern "C" HWND WINAPI HookSetActiveWindow(HWND hWnd)
 	return NULL;
 }
 
-extern "C" bool WINAPI HookSetWindowPos(_In_ HWND hWnd, _In_opt_  HWND insertAfter, _In_ int x, _In_ int y, _In_ int cx, _In_ int cy, _In_ UINT uflags)
-{
-	if (justFixedWindow) {
-		return true;
-	}
-	return TrueSetWindowPos(hWnd, insertAfter, x, y, cx, cy, uflags);
-}
 
 struct EnumWindowsCallbackArgs {
 	EnumWindowsCallbackArgs(DWORD p) : pid(p) { }
@@ -406,121 +409,227 @@ HRESULT __fastcall HookCDIDev_SetDataFormat(int* a1, int a2, int a3, int a4, int
 }
 
 LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-	if (fixingWindow) {
-		if (gameSetWindowLongW == 0) {
-			return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
-		}
-		else {
-			return CallWindowProc((WNDPROC)gameSetWindowLongW, hWnd, message, wParam, lParam);
-		}
-	}
-
 #ifdef _DEBUG
-	//PrintLog(("Event: " + std::to_string(message) + " " + std::to_string(gameSetWindowLongW)).c_str());
 #endif
 
-	if (Globals::hasSetPosition) {
-		if (!Globals::hasSetSize) {
-			fixingWindow = true;
+	if (fixingWindow) {
+		PrintLog(("Fixing Window Event: " + std::to_string(message) + " " + std::to_string(gameSetWindowLongW)).c_str());
 
-			DWORD width = Globals::resWidth;
-			DWORD height = Globals::resHeight;
-			DWORD x = Globals::windowX;
-			DWORD y = Globals::windowY;
+		// forward Window changing events
+		switch (message) {
 
-			// remove titlebar
-			long lStyle = GetWindowLong(GameHWND, GWL_STYLE);
-			lStyle = lStyle & ~WS_CAPTION;
-			lStyle = lStyle & ~WS_THICKFRAME;
-			lStyle = lStyle & ~WS_MINIMIZE;
-			lStyle = lStyle & ~WS_MAXIMIZE;
-			lStyle = lStyle & ~WS_SYSMENU;
-			TrueSetWindowLongW(GameHWND, GWL_STYLE, lStyle);
-
-			// exstyle
-			lStyle = GetWindowLong(GameHWND, GWL_EXSTYLE);
-			lStyle = lStyle & ~WS_EX_DLGMODALFRAME;
-			lStyle = lStyle & ~WS_EX_CLIENTEDGE;
-			lStyle = lStyle & ~WS_EX_STATICEDGE;
-			TrueSetWindowLongW(GameHWND, GWL_EXSTYLE, lStyle);
-
-			if (Globals::fixResolution) {
-				height = height;
-				// for some reason scaling here adds the titlebar height twice
-				// +4 pixels to guarantee the user wont click on another window with the clipping
-				SetWindowPos(GameHWND, HWND_TOPMOST, x, y, width, height, SWP_FRAMECHANGED | SWP_NOMOVE);
-				PrintLog(("Set window size to: " + std::to_string(width) + "x" + std::to_string(height)).c_str());
+		case WM_GETMINMAXINFO:
+		case WM_WINDOWPOSCHANGING:
+		case WM_WINDOWPOSCHANGED:
+		case WM_NCCALCSIZE:
+		case WM_MOVE:
+		case WM_SIZE:
+		case WM_STYLECHANGING:
+		case WM_STYLECHANGED:
+			if (gameSetWindowLongW == 0) {
+				return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
 			}
 			else {
-				SetWindowPos(GameHWND, HWND_TOPMOST, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
+				return CallWindowProc((WNDPROC)gameSetWindowLongW, hWnd, message, wParam, lParam);
 			}
 
-			RECT hwndRect;
-			GetClientRect(GameHWND, &hwndRect);
-
-			if (hwndRect.left < 0 ||
-				hwndRect.top < 0 ||
-				// aproximate size else it might not work TODO
-				hwndRect.right < ((width / 10) * 8) ||
-				hwndRect.bottom < ((height / 10) * 8)) {
-			}
-			else {
-				Globals::hasSetSize = true;
-				justFixedWindow = true;
-				PrintLog(("Finished size: x:" + std::to_string(hwndRect.left) + " y:" + std::to_string(hwndRect.top) + " " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
-			}
-
-			fixingWindow = false;
+		default:
+			PrintLog(("Defaulted Window Event: " + std::to_string(message) + " " + std::to_string(gameSetWindowLongW)).c_str());
+			break;
 		}
 	}
-	else if (Globals::hasHooked) {
-		fixingWindow = true;
-		DWORD width = Globals::resWidth;
-		DWORD height = Globals::resHeight;
-		DWORD x = Globals::windowX;
-		DWORD y = Globals::windowY;
+	else {
+		if (Globals::hasHooked) {
+			if (!Globals::hasSetEverything && Globals::hasSetSize && Globals::hasSetPosition && Globals::hasSetStyle) {
+				// check if location matches
+				DWORD width = Globals::resWidth;
+				DWORD height = Globals::resHeight;
+				DWORD x = Globals::windowX;
+				DWORD y = Globals::windowY;
 
-		if (Globals::fixPosition) {
-			SetWindowPos(GameHWND, HWND_TOPMOST, x, y, 0, 0, SWP_FRAMECHANGED | SWP_NOSIZE);
-			PrintLog(("Set window position to: " + std::to_string(x) + ":" + std::to_string(y)).c_str());
+				RECT hwndRect;
+				GetWindowRect(GameHWND, &hwndRect);
+
+				// check if already on correct position
+				bool setEverything = true;
+				if (hwndRect.left != x ||
+					hwndRect.top != y) {
+					PrintLog("Reset position");
+
+					setEverything = false;
+					Globals::hasSetPosition = false;
+					Globals::hasSetSize = false;
+				}
+
+				RECT clientRect;
+				GetClientRect(GameHWND, &clientRect);
+
+				if ((hwndRect.right <= width && ((width / 10) * 8) > ((width / 10) * 8)) ||
+					(hwndRect.bottom <= height && hwndRect.bottom > ((height / 10) * 8))) {
+					// 10/10 programming
+				}
+				else {
+					setEverything = false;
+					Globals::hasSetSize = false;
+				}
+
+				long currentStyle = TrueGetWindowLongW(GameHWND, GWL_STYLE);
+				long lStyle = currentStyle;
+				lStyle = lStyle & ~WS_CAPTION;
+				lStyle = lStyle & ~WS_THICKFRAME;
+				lStyle = lStyle & ~WS_MINIMIZE;
+				lStyle = lStyle & ~WS_MAXIMIZE;
+				lStyle = lStyle & ~WS_SYSMENU;
+
+				long currentExStyle = TrueGetWindowLongW(GameHWND, GWL_EXSTYLE);
+				long exStyle = currentExStyle;
+				exStyle = exStyle & ~WS_EX_DLGMODALFRAME;
+				exStyle = exStyle & ~WS_EX_CLIENTEDGE;
+				exStyle = exStyle & ~WS_EX_STATICEDGE;
+
+				/*if (lStyle != currentStyle ||
+					exStyle != currentExStyle) {
+					PrintLog("Reset style");
+
+					setEverything = false;
+					Globals::hasSetStyle = false;
+				}*/
+
+				if (setEverything) {
+					justFixedWindow = true;
+					PrintLog(("Set everything with: style(" + std::to_string(lStyle) + ") " + " exstyle(" + std::to_string(exStyle) + ") " +
+						std::to_string(hwndRect.left) + ":" + std::to_string(hwndRect.top) + " " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
+				}
+
+				Globals::hasSetEverything = setEverything;
+			}
+			else if (!Globals::hasSetSize) {
+				fixingWindow = true;
+
+				DWORD width = Globals::resWidth;
+				DWORD height = Globals::resHeight;
+
+				if (Globals::fixResolution) {
+					RECT hwndRect;
+					GetClientRect(GameHWND, &hwndRect);
+
+					// less or equal to the actual size,
+					// but 80% offset to make sure
+					// TODO: this is terrible
+					if ((hwndRect.right <= width && ((width / 10) * 8) > ((width / 10) * 8)) ||
+						(hwndRect.bottom <= height && hwndRect.bottom > ((height / 10) * 8))) {
+						PrintLog(("Fixed size: " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
+						Globals::hasSetSize = true;
+					}
+					else {
+						PrintLog(("Rect size: " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
+						PrintLog(("Set window size to: " + std::to_string(width) + "x" + std::to_string(height)).c_str());
+						TrueSetWindowPos(GameHWND, HWND_TOPMOST, 0, 0, width, height, SWP_FRAMECHANGED | SWP_NOMOVE);
+					}
+				}
+				else {
+					TrueSetWindowPos(GameHWND, HWND_TOPMOST, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
+					Globals::hasSetSize = true;
+				}
+
+				fixingWindow = false;
+			}
+			else if (!Globals::hasSetPosition) {
+				fixingWindow = true;
+				DWORD width = Globals::resWidth;
+				DWORD height = Globals::resHeight;
+				DWORD x = Globals::windowX;
+				DWORD y = Globals::windowY;
+
+				if (Globals::fixPosition) {
+					RECT hwndRect;
+					GetWindowRect(GameHWND, &hwndRect);
+
+					// check if already on correct position
+					if (hwndRect.left != x ||
+						hwndRect.top != y) {
+
+						PrintLog(("Rect position: " + std::to_string(hwndRect.left) + ":" + std::to_string(hwndRect.top)).c_str());
+						PrintLog(("Set window position to: " + std::to_string(x) + ":" + std::to_string(y)).c_str());
+
+						int tHeight = (GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CYCAPTION) + GetSystemMetrics(SM_CXPADDEDBORDER));
+						//std::ceil(((GetSystemMetrics(SM_CYCAPTION) + GetSystemMetrics(SM_CYFRAME)) * dpi_scale) + GetSystemMetrics(SM_CXPADDEDBORDER))
+						titleSize.x = 0;
+						titleSize.y = tHeight;
+
+						PrintLog(("Title bar size: " + std::to_string(titleSize.x) + ":" + std::to_string(titleSize.y)).c_str());
+						TrueSetWindowPos(GameHWND, HWND_TOPMOST, x, y, 0, 0, SWP_FRAMECHANGED | SWP_NOSIZE);
+					}
+					else {
+						PrintLog(("Fixed position: " + std::to_string(hwndRect.left) + ":" + std::to_string(hwndRect.top) + " " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
+						Globals::hasSetPosition = true;
+					}
+				}
+				else {
+					Globals::hasSetPosition = true;
+				}
+
+				fixingWindow = false;
+			}
+			else if (!Globals::hasSetStyle && !changingStyle) {
+				fixingWindow = true;
+
+				// remove titlebar
+				long currentStyle = TrueGetWindowLongW(GameHWND, GWL_STYLE);
+				long lStyle = currentStyle;
+				lStyle = lStyle & ~WS_CAPTION;
+				lStyle = lStyle & ~WS_THICKFRAME;
+				lStyle = lStyle & ~WS_MINIMIZE;
+				lStyle = lStyle & ~WS_MAXIMIZE;
+				lStyle = lStyle & ~WS_SYSMENU;
+
+				// exstyle
+				long currentExStyle = TrueGetWindowLongW(GameHWND, GWL_EXSTYLE);
+				long exStyle = currentExStyle;
+				exStyle = exStyle & ~WS_EX_DLGMODALFRAME;
+				exStyle = exStyle & ~WS_EX_CLIENTEDGE;
+				exStyle = exStyle & ~WS_EX_STATICEDGE;
+
+				if (lStyle == currentStyle && exStyle == currentExStyle) {
+					Globals::hasSetStyle = true;
+				}
+				else {
+					TrueSetWindowLongW(GameHWND, GWL_STYLE, lStyle);
+					TrueSetWindowLongW(GameHWND, GWL_EXSTYLE, exStyle);
+					TrueSetWindowPos(GameHWND, 0, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+				}
+
+				fixingWindow = false;
+			}
 		}
-
-		RECT rectHwnd;
-		//GetClientRect(GameHWND, &rectHwnd);
-		GetWindowRect(GameHWND, &rectHwnd);
-
-		if (rectHwnd.left != x ||
-			rectHwnd.top != y ||
-			rectHwnd.left < 0 ||
-			rectHwnd.top < 0 ||
-			// aproximate size else it might not work TODO
-			rectHwnd.right < ((width / 10) * 8) ||
-			rectHwnd.bottom < ((height / 10) * 8)) {
-
-		}
-		else {
-			Globals::hasSetPosition = true;
-
-			int height = (GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CYCAPTION) +
-				GetSystemMetrics(SM_CXPADDEDBORDER));
-			//std::ceil(((GetSystemMetrics(SM_CYCAPTION) + GetSystemMetrics(SM_CYFRAME)) * dpi_scale) + GetSystemMetrics(SM_CXPADDEDBORDER))
-
-			titleSize.x = 0;
-			titleSize.y = height;
-
-			PrintLog(("Title bar size: " + std::to_string(titleSize.x) + ":" + std::to_string(titleSize.y)).c_str());
-			PrintLog(("Finished position: x:" + std::to_string(rectHwnd.left) + " y:" + std::to_string(rectHwnd.top) + " " + std::to_string(rectHwnd.right) + "x" + std::to_string(rectHwnd.bottom)).c_str());
-		}
-
-		fixingWindow = false;
 	}
+
 
 	switch (message)
 	{
+		// window changing events
+	case WM_WINDOWPOSCHANGING:
+	case WM_WINDOWPOSCHANGED:
+	case WM_NCCALCSIZE:
+	case WM_MOVE:
+	case WM_SIZE:
+	case WM_SIZING:
+	case WM_STYLECHANGING:
+		break;
+
+	case WM_STYLECHANGED:
+		changingStyle = false;
+		break;
+
 		//PrintLog(("Event: " + std::to_string(message)).c_str());
 		//return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
 	case WM_INPUT: // raw mouse input?
-		//DefWindowProc(hWnd, message, 0, lParam);
+	case WM_IME_SETCONTEXT:
+	case WM_NCACTIVATE:
+		// Sent to a window when its nonclient area needs to be changed to indicate an active or inactive state.
+	case WM_IME_NOTIFY:
+	case WM_ACTIVATE:
+
 		if (Globals::enableMKBInput)
 		{
 			break;
@@ -530,13 +639,6 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 			return 0;
 		}
 
-	case WM_NCACTIVATE:
-		// Sent to a window when its nonclient area needs to be changed to indicate an active or inactive state.
-		// Faked: wParam is always true, so the window always looks active
-		PrintLog(("Blocked WM_NCACTIVATE: " + std::to_string(message)).c_str());
-		return 0;
-		//return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
-
 	case WM_NCHITTEST:
 		// System is checking if the mouse is inside the game screen, but we dont want
 		// that call to ever be recognized by the game
@@ -545,28 +647,6 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 			break;
 		}
 		return HTNOWHERE;
-
-	case WM_IME_SETCONTEXT:
-		// Sent to an application when a window is activated.
-		PrintLog(("Blocked WM_IME_SETCONTEXT: " + std::to_string(message)).c_str());
-		return 0;
-		//return CallWindowProc(TrueWndProc, hWnd, message, true, 0);
-
-	case WM_IME_NOTIFY:
-		//PrintLog(("Blocked WM_IME_NOTIFY: " + std::to_string(message)).c_str());
-		return 0;
-		//return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
-
-	case WM_ACTIVATE:
-		// msdn: Sent to both the window being activated and the window being deactivated
-		PrintLog(("Blocked WM_ACTIVATE: " + std::to_string(message)).c_str());
-		return 0;
-		return CallWindowProc(TrueWndProc, hWnd, message, 1, NULL);
-
-	case WM_WINDOWPOSCHANGING:
-	case WM_WINDOWPOSCHANGED:
-		// why was I holding these events? TODO
-		break;
 
 	case WM_SETFOCUS:
 	case WM_KILLFOCUS:
@@ -579,7 +659,6 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		return 0;
 
 		// Mouse and shit
-	case WM_SETCURSOR:
 	case WM_LBUTTONDOWN:
 	case WM_LBUTTONUP:
 	case WM_NCMOUSEMOVE:
@@ -626,6 +705,20 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 			return 0;
 		}
 
+	case WM_SETCURSOR:
+		if (Globals::enableMKBInput)
+		{
+			break;
+		}
+		else
+		{
+			// return true to stop Windows from trying to
+			// keep sending WM_SETCURSOR to the process
+			// (prevents crashes in all Borderlands with early clicks, not sure other games)
+			return true;
+		}
+		break;
+
 	case WM_MOUSEMOVE:
 		// clip everytime, TODO: benchmark this
 		if (Globals::clipMouse)
@@ -665,13 +758,10 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		}
 
 
-	case WM_SIZE:
-	case WM_SIZING:
 	case WM_SYSCOMMAND:
 	case WM_GETMINMAXINFO:
 	case WM_ENTERSIZEMOVE:
 	case WM_MOVING:
-	case WM_MOVE:
 	case WM_EXITSIZEMOVE:
 	case WM_NCDESTROY:
 	case WM_CANCELMODE:
@@ -759,7 +849,6 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_MENUGETOBJECT:
 	case WM_MENURBUTTONUP:
 	case WM_MENUSELECT:
-	case WM_NCCALCSIZE:
 	case WM_NCCREATE:
 	case WM_NCPAINT:
 	case WM_NEXTDLGCTL:
@@ -818,8 +907,6 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		break;
 	}
 
-	case WM_STYLECHANGED:
-	case WM_STYLECHANGING:
 	default: {
 		// WM_NCUAHDRAWCAPTION
 		//return 0;
@@ -858,27 +945,66 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	}
 }
 
+bool resetOnce = false;
+
+extern "C" bool WINAPI HookSetWindowPos(_In_ HWND hWnd, _In_opt_  HWND insertAfter, _In_ int x, _In_ int y, _In_ int cx, _In_ int cy, _In_ UINT uflags) {
+	PrintLog(("HookSetWindowPos: " + std::to_string(uflags)).c_str());
+
+	/*if (justFixedWindow && !fixingWindow) {
+		return true;
+	}*/
+
+	if (justFixedWindow) {
+		return true;
+	}
+	return TrueSetWindowPos(hWnd, insertAfter, x, y, cx, cy, uflags);
+}
+
 
 extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong) {
 	PrintLog(("HookSetWindowLongW: " + std::to_string(nIndex) + " " + std::to_string(dwNewLong)).c_str());
 	//return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
 
 	if (nIndex == GWL_WNDPROC) {
-		// save the actual game setWindowLongW
-		gameSetWindowLongW = dwNewLong;
+		if (wnd == GameHWND) {
+			// save the actual game setWindowLongW
+			if (dwNewLong != HookWndProcPtr) {
+				// this function is indirectly called by ourselves,
+				// guarantee were not recursively setting the same WndProc
+				gameSetWindowLongW = dwNewLong;
+			}
 
-		// re-set everything
-		Globals::hasSetPosition = false;
-		Globals::hasSetSize = false;
+			// overwrite with our own wnd proc
+			return (LONG)TrueWndProc;
+			//return TrueSetWindowLongW(wnd, nIndex, (LONG_PTR)&HookWndProc);
+		}
+	}
+	else if (nIndex == GWL_STYLE) {
+		if (wnd == GameHWND) {
+			windowStyle = dwNewLong;
+			if (Globals::hasSetEverything) {
+				//return windowStyle;
+			}
+			//return TrueSetWindowLongW(wnd, nIndex, lStyle);
+		}
+	}
+	else if (nIndex == GWL_EXSTYLE) {
+		long exStyle = TrueGetWindowLongW(GameHWND, GWL_EXSTYLE);
+		exStyle = exStyle & ~WS_EX_DLGMODALFRAME;
+		exStyle = exStyle & ~WS_EX_CLIENTEDGE;
+		exStyle = exStyle & ~WS_EX_STATICEDGE;
 
-		// overwrite with our own wnd proc
-		return (LONG)TrueWndProc;
+		if (exStyle != dwNewLong) {
+			windowExStyle = dwNewLong;
+			/*PrintLog("Reset exstyle from Hooked Set Window");
+			changingStyle = true;
+			Globals::hasSetStyle = false;
+			Globals::hasSetEverything = false;*/
+		}
 	}
-	else {
-		return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
-	}
+
+	return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
 }
-
 
 unsigned int ComputeLevenshteinDistance(const std::wstring& s1, const std::wstring& s2)
 {
@@ -935,7 +1061,6 @@ void HandleForceFocus()
 					continue;
 				}
 
-				//if (ComputeLevenshteinDistance(stStr, *wndName) < 2) // good enough
 				if (regex_search(stStr, gameName)) // regex
 				{
 					wstring_convert<codecvt_utf8_utf16<wchar_t>> convert;
@@ -943,21 +1068,11 @@ void HandleForceFocus()
 					PrintLog(str.c_str());
 
 					GameHWND = wnd;
-					TrueWndProc = (WNDPROC)SetWindowLongPtr(GameHWND, GWL_WNDPROC, (LONG_PTR)&HookWndProc);
-					if (TrueWndProc == nullptr)
-					{
-						PrintLog("!!!COULD NOT SET WINDOW PROCEDURE!!!");
-					}
-					else
-					{
-						PrintLog("Hooked to Game Window %u", (long)TrueWndProc);
-						Globals::hasHooked = true;
-					}
 					HMODULE mod = LoadLibrary(L"user32");
 
-					/*void* getWindowLongWPtr = GetProcAddress(mod, "GetWindowLongW");
+					void* getWindowLongWPtr = GetProcAddress(mod, "GetWindowLongW");
 					IH_CreateHook(getWindowLongWPtr, HookGetWindowLongW, reinterpret_cast<LPVOID*>(&TrueGetWindowLongW));
-					IH_EnableHook(getWindowLongWPtr);*/
+					IH_EnableHook(getWindowLongWPtr);
 
 					void* getForegroundPtr = GetProcAddress(mod, "GetForegroundWindow");
 					IH_CreateHook(getForegroundPtr, HookGetForegroundWindow, reinterpret_cast<LPVOID*>(&TrueGetForegroundWindow));
@@ -1009,8 +1124,22 @@ void HandleForceFocus()
 						PrintLog("Hooked to cursor functions");
 					}
 
+					HookWndProcPtr = (LONG_PTR)&HookWndProc;
+					TrueWndProc = (WNDPROC)TrueSetWindowLongW(GameHWND, GWL_WNDPROC, HookWndProcPtr);
+					if (TrueWndProc == nullptr)
+					{
+						PrintLog("!!!COULD NOT SET WINDOW PROCEDURE!!!");
+					}
+					else
+					{
+						PrintLog("Hooked to Game Window %u", (long)TrueWndProc);
+						PrintLog(("Window: " + str).c_str());
+						PrintLog("Regex: %u", wndRegex->c_str());
+						Globals::hasHooked = true;
+					}
 					PrintLog("Hooked to game window");
-					//break;
+
+					break;
 				}
 			}
 		}
@@ -1021,100 +1150,100 @@ void HandleForceFocus()
 
 DWORD WINAPI HookThread()
 {
-//	if (Globals::dInputEnabled || Globals::dInputForceDisable)
-//	{
-//		HMODULE dinputModule = LoadLibrary(L"dinput");
-//
-//		DWORD cDIDev_GetDeviceStateOffset = 0;
-//		DWORD cDIObj_CreateDeviceWOffset = 0;
-//		DWORD joyReg_GetConfigOffset = 0;
-//		if (Globals::dInputLibrary == 1)
-//		{
-//			PrintLog("DInput ID1");
-//
-//			// windows 10 creators update
-//			cDIDev_GetDeviceStateOffset = -19504;
-//			cDIObj_CreateDeviceWOffset = 800;
-//			joyReg_GetConfigOffset = 43434;
-//		}
-//		else if (Globals::dInputLibrary == 2)
-//		{
-//			PrintLog("DInput ID2");
-//
-//			// random windows 10 installation (from a friend's PC)
-//			cDIDev_GetDeviceStateOffset = -20032;
-//			cDIObj_CreateDeviceWOffset = 832;
-//			joyReg_GetConfigOffset = 44031;
-//		}
-//		else
-//		{
-//			PrintLog("DInput Unkwnown");
-//		}
-//
-//		void* directInputCreateAPtr = GetProcAddress(dinputModule, "DirectInputCreateA");
-//		void* directInputCreateWPtr = GetProcAddress(dinputModule, "DirectInputCreateW");
-//
-//		if (Globals::dInputForceDisable)
-//		{
-//			PrintLog("DInput Forced Disable");
-//			IH_CreateHook(directInputCreateWPtr, HookDirectInputCreateW, reinterpret_cast<LPVOID*>(&TrueDirectInputCreateW));
-//			IH_EnableHook(directInputCreateWPtr);
-//
-//			if (Globals::dInputLibrary != 0)
-//			{
-//				// hook to remove all possible calls to DirectInput
-//				void* cDIObj_CreateDeviceWPtr = (void*)((DWORD)directInputCreateAPtr + cDIObj_CreateDeviceWOffset);
-//				void* joyReg_GetConfigPtr = (void*)((DWORD)directInputCreateAPtr + joyReg_GetConfigOffset);
-//
-//				IH_CreateHook(cDIObj_CreateDeviceWPtr, HookCDIObj_CreateDeviceW_Disabled, reinterpret_cast<LPVOID*>(&TrueCDIObj_CreateDeviceW));
-//				IH_EnableHook(cDIObj_CreateDeviceWPtr);
-//
-//				IH_CreateHook(joyReg_GetConfigPtr, HookJoyReg_GetConfig_Disabled, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
-//				IH_EnableHook(joyReg_GetConfigPtr);
-//			}
-//		}
-//		else if (Globals::dInputEnabled && Globals::dInputLibrary != 0)
-//		{
-//#ifdef NOT_COMPILE
-//			PrintLog("DInput Hook Enabled");
-//			//void* cDIDev_GetDeviceStatePtr = (void*)((DWORD)directInputCreateAPtr - 20032);// other version of Windows 10??
-//			void* cDIDev_GetDeviceStatePtr = (void*)((DWORD)directInputCreateAPtr + cDIDev_GetDeviceStateOffset);
-//			void* cDIObj_CreateDeviceWPtr = (void*)((DWORD)directInputCreateAPtr + cDIObj_CreateDeviceWOffset);
-//			void* joyReg_GetConfigPtr = (void*)((DWORD)directInputCreateAPtr + joyReg_GetConfigOffset);
-//			void* cDIDev_SetCooperativeLevelPtr = (void*)((DWORD)directInputCreateAPtr - 25616);
-//			void* cDIDev_SetDataFormatPtr = (void*)((DWORD)directInputCreateAPtr - 19936);
-//			// void* cDIDev_PollPtr = (void*)((DWORD)directInputCreateAPtr - 18720);
-//			//void* cDIDev_AcquirePtr = (void*)((DWORD)directInputCreateAPtr - 27696);
-//
-//			//IH_CreateHook(cDIDev_AcquirePtr, HookCDIDev_Poll, reinterpret_cast<LPVOID*>(&TrueCDIDev_Poll));
-//			//IH_EnableHook(cDIDev_AcquirePtr);
-//
-//			//IH_CreateHook(cDIDev_GetDeviceStatePtr, HookCDIDev_GetDeviceState, reinterpret_cast<LPVOID*>(&TrueCDIDev_GetDeviceState));
-//			//IH_EnableHook(cDIDev_GetDeviceStatePtr);
-//
-//			//IH_CreateHook(cDIDev_SetDataFormatPtr, HookCDIDev_SetDataFormat, reinterpret_cast<LPVOID*>(&TrueCDIDev_SetDataFormat));
-//			//IH_EnableHook(cDIDev_SetDataFormatPtr);
-//
-//			//IH_CreateHook(cDIDev_SetCooperativeLevelPtr, HookCDIDev_SetCooperativeLevel, reinterpret_cast<LPVOID*>(&TrueCDIDev_SetCooperativeLevel));
-//			//IH_EnableHook(cDIDev_SetCooperativeLevelPtr);
-//
-//			// hooking only these 2 work for L4D2 so we are only need them right now
-//			IH_CreateHook(cDIObj_CreateDeviceWPtr, HookCDIObj_CreateDeviceW, reinterpret_cast<LPVOID*>(&TrueCDIObj_CreateDeviceW));
-//			IH_EnableHook(cDIObj_CreateDeviceWPtr);
-//
-//			IH_CreateHook(joyReg_GetConfigPtr, HookJoyReg_GetConfig, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
-//			IH_EnableHook(joyReg_GetConfigPtr);
-//#endif
-//
-//			/*HMODULE dinput8Module = LoadLibrary(L"dinput8");
-//
-//			void* directInput8CreatePtr = GetProcAddress(dinput8Module, "DirectInput8Create");
-//			void* cDIObj_CreateDeviceW = (void*)((DWORD)directInput8CreatePtr + 58560);
-//
-//			IH_CreateHook(cDIObj_CreateDeviceW, HookCDIObj_EnumObjectsW, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
-//			IH_EnableHook(cDIObj_CreateDeviceW);*/
-//		}
-//	}
+	//	if (Globals::dInputEnabled || Globals::dInputForceDisable)
+	//	{
+	//		HMODULE dinputModule = LoadLibrary(L"dinput");
+	//
+	//		DWORD cDIDev_GetDeviceStateOffset = 0;
+	//		DWORD cDIObj_CreateDeviceWOffset = 0;
+	//		DWORD joyReg_GetConfigOffset = 0;
+	//		if (Globals::dInputLibrary == 1)
+	//		{
+	//			PrintLog("DInput ID1");
+	//
+	//			// windows 10 creators update
+	//			cDIDev_GetDeviceStateOffset = -19504;
+	//			cDIObj_CreateDeviceWOffset = 800;
+	//			joyReg_GetConfigOffset = 43434;
+	//		}
+	//		else if (Globals::dInputLibrary == 2)
+	//		{
+	//			PrintLog("DInput ID2");
+	//
+	//			// random windows 10 installation (from a friend's PC)
+	//			cDIDev_GetDeviceStateOffset = -20032;
+	//			cDIObj_CreateDeviceWOffset = 832;
+	//			joyReg_GetConfigOffset = 44031;
+	//		}
+	//		else
+	//		{
+	//			PrintLog("DInput Unkwnown");
+	//		}
+	//
+	//		void* directInputCreateAPtr = GetProcAddress(dinputModule, "DirectInputCreateA");
+	//		void* directInputCreateWPtr = GetProcAddress(dinputModule, "DirectInputCreateW");
+	//
+	//		if (Globals::dInputForceDisable)
+	//		{
+	//			PrintLog("DInput Forced Disable");
+	//			IH_CreateHook(directInputCreateWPtr, HookDirectInputCreateW, reinterpret_cast<LPVOID*>(&TrueDirectInputCreateW));
+	//			IH_EnableHook(directInputCreateWPtr);
+	//
+	//			if (Globals::dInputLibrary != 0)
+	//			{
+	//				// hook to remove all possible calls to DirectInput
+	//				void* cDIObj_CreateDeviceWPtr = (void*)((DWORD)directInputCreateAPtr + cDIObj_CreateDeviceWOffset);
+	//				void* joyReg_GetConfigPtr = (void*)((DWORD)directInputCreateAPtr + joyReg_GetConfigOffset);
+	//
+	//				IH_CreateHook(cDIObj_CreateDeviceWPtr, HookCDIObj_CreateDeviceW_Disabled, reinterpret_cast<LPVOID*>(&TrueCDIObj_CreateDeviceW));
+	//				IH_EnableHook(cDIObj_CreateDeviceWPtr);
+	//
+	//				IH_CreateHook(joyReg_GetConfigPtr, HookJoyReg_GetConfig_Disabled, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
+	//				IH_EnableHook(joyReg_GetConfigPtr);
+	//			}
+	//		}
+	//		else if (Globals::dInputEnabled && Globals::dInputLibrary != 0)
+	//		{
+	//#ifdef NOT_COMPILE
+	//			PrintLog("DInput Hook Enabled");
+	//			//void* cDIDev_GetDeviceStatePtr = (void*)((DWORD)directInputCreateAPtr - 20032);// other version of Windows 10??
+	//			void* cDIDev_GetDeviceStatePtr = (void*)((DWORD)directInputCreateAPtr + cDIDev_GetDeviceStateOffset);
+	//			void* cDIObj_CreateDeviceWPtr = (void*)((DWORD)directInputCreateAPtr + cDIObj_CreateDeviceWOffset);
+	//			void* joyReg_GetConfigPtr = (void*)((DWORD)directInputCreateAPtr + joyReg_GetConfigOffset);
+	//			void* cDIDev_SetCooperativeLevelPtr = (void*)((DWORD)directInputCreateAPtr - 25616);
+	//			void* cDIDev_SetDataFormatPtr = (void*)((DWORD)directInputCreateAPtr - 19936);
+	//			// void* cDIDev_PollPtr = (void*)((DWORD)directInputCreateAPtr - 18720);
+	//			//void* cDIDev_AcquirePtr = (void*)((DWORD)directInputCreateAPtr - 27696);
+	//
+	//			//IH_CreateHook(cDIDev_AcquirePtr, HookCDIDev_Poll, reinterpret_cast<LPVOID*>(&TrueCDIDev_Poll));
+	//			//IH_EnableHook(cDIDev_AcquirePtr);
+	//
+	//			//IH_CreateHook(cDIDev_GetDeviceStatePtr, HookCDIDev_GetDeviceState, reinterpret_cast<LPVOID*>(&TrueCDIDev_GetDeviceState));
+	//			//IH_EnableHook(cDIDev_GetDeviceStatePtr);
+	//
+	//			//IH_CreateHook(cDIDev_SetDataFormatPtr, HookCDIDev_SetDataFormat, reinterpret_cast<LPVOID*>(&TrueCDIDev_SetDataFormat));
+	//			//IH_EnableHook(cDIDev_SetDataFormatPtr);
+	//
+	//			//IH_CreateHook(cDIDev_SetCooperativeLevelPtr, HookCDIDev_SetCooperativeLevel, reinterpret_cast<LPVOID*>(&TrueCDIDev_SetCooperativeLevel));
+	//			//IH_EnableHook(cDIDev_SetCooperativeLevelPtr);
+	//
+	//			// hooking only these 2 work for L4D2 so we are only need them right now
+	//			IH_CreateHook(cDIObj_CreateDeviceWPtr, HookCDIObj_CreateDeviceW, reinterpret_cast<LPVOID*>(&TrueCDIObj_CreateDeviceW));
+	//			IH_EnableHook(cDIObj_CreateDeviceWPtr);
+	//
+	//			IH_CreateHook(joyReg_GetConfigPtr, HookJoyReg_GetConfig, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
+	//			IH_EnableHook(joyReg_GetConfigPtr);
+	//#endif
+	//
+	//			/*HMODULE dinput8Module = LoadLibrary(L"dinput8");
+	//
+	//			void* directInput8CreatePtr = GetProcAddress(dinput8Module, "DirectInput8Create");
+	//			void* cDIObj_CreateDeviceW = (void*)((DWORD)directInput8CreatePtr + 58560);
+	//
+	//			IH_CreateHook(cDIObj_CreateDeviceW, HookCDIObj_EnumObjectsW, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
+	//			IH_EnableHook(cDIObj_CreateDeviceW);*/
+	//		}
+	//	}
 
 	HandleForceFocus();
 

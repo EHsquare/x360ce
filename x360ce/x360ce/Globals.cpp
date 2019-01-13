@@ -41,5 +41,8 @@ bool Globals::fixPosition = false;
 bool Globals::clipMouse = false;
 
 bool Globals::hasHooked = false;
-bool Globals::hasSetPosition = true;
-bool Globals::hasSetSize = true;
+
+bool Globals::hasSetStyle = false;
+bool Globals::hasSetPosition = false;
+bool Globals::hasSetSize = false;
+bool Globals::hasSetEverything = false;
