@@ -448,11 +448,11 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 				height = height;
 				// for some reason scaling here adds the titlebar height twice
 				// +4 pixels to guarantee the user wont click on another window with the clipping
-				SetWindowPos(GameHWND, 0, x, y, width, height, SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOMOVE);
+				SetWindowPos(GameHWND, HWND_TOPMOST, x, y, width, height, SWP_FRAMECHANGED | SWP_NOMOVE);
 				PrintLog(("Set window size to: " + std::to_string(width) + "x" + std::to_string(height)).c_str());
 			}
 			else {
-				SetWindowPos(GameHWND, 0, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+				SetWindowPos(GameHWND, HWND_TOPMOST, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
 			}
 
 			RECT hwndRect;
@@ -481,7 +481,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		DWORD y = Globals::windowY;
 
 		if (Globals::fixPosition) {
-			SetWindowPos(GameHWND, (HWND)-1, x, y, 0, 0, SWP_FRAMECHANGED | SWP_NOSIZE);
+			SetWindowPos(GameHWND, HWND_TOPMOST, x, y, 0, 0, SWP_FRAMECHANGED | SWP_NOSIZE);
 			PrintLog(("Set window position to: " + std::to_string(x) + ":" + std::to_string(y)).c_str());
 		}
 
@@ -534,8 +534,8 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		// Sent to a window when its nonclient area needs to be changed to indicate an active or inactive state.
 		// Faked: wParam is always true, so the window always looks active
 		PrintLog(("Blocked WM_NCACTIVATE: " + std::to_string(message)).c_str());
-		//return 0;
-		return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
+		return 0;
+		//return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
 
 	case WM_NCHITTEST:
 		// System is checking if the mouse is inside the game screen, but we dont want
@@ -544,21 +544,18 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		if (Globals::enableMKBInput) {
 			break;
 		}
-
-		PrintLog(("Blocked chit test: " + std::to_string(message)).c_str());
-		break;
 		return HTNOWHERE;
 
 	case WM_IME_SETCONTEXT:
 		// Sent to an application when a window is activated.
 		PrintLog(("Blocked WM_IME_SETCONTEXT: " + std::to_string(message)).c_str());
-		//return 0;
-		return CallWindowProc(TrueWndProc, hWnd, message, true, 0);
+		return 0;
+		//return CallWindowProc(TrueWndProc, hWnd, message, true, 0);
 
 	case WM_IME_NOTIFY:
 		//PrintLog(("Blocked WM_IME_NOTIFY: " + std::to_string(message)).c_str());
-		//return 0;
-		return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
+		return 0;
+		//return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
 
 	case WM_ACTIVATE:
 		// msdn: Sent to both the window being activated and the window being deactivated
@@ -873,7 +870,6 @@ extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong) 
 		// re-set everything
 		Globals::hasSetPosition = false;
 		Globals::hasSetSize = false;
-		//justFixedWindow = false;
 
 		// overwrite with our own wnd proc
 		return (LONG)TrueWndProc;
@@ -881,13 +877,6 @@ extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong) 
 	else {
 		return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
 	}
-	//if (nIndex == GWL_WNDPROC) {
-	//	// set last error to 0 to return 0 and no app think its a failure
-	//	SetLastError(0);
-	//	return 0;
-	//}
-	//else {
-	//}
 }
 
 
@@ -933,7 +922,7 @@ void HandleForceFocus()
 			for (int i = 0; i < size; i++)
 			{
 				HWND wnd = windows[i];
-				if (wnd == nullptr)// || Globals::hasHooked)
+				if (wnd == nullptr)
 				{
 					continue;
 				}
@@ -1032,100 +1021,100 @@ void HandleForceFocus()
 
 DWORD WINAPI HookThread()
 {
-	if (Globals::dInputEnabled || Globals::dInputForceDisable)
-	{
-		HMODULE dinputModule = LoadLibrary(L"dinput");
-
-		DWORD cDIDev_GetDeviceStateOffset = 0;
-		DWORD cDIObj_CreateDeviceWOffset = 0;
-		DWORD joyReg_GetConfigOffset = 0;
-		if (Globals::dInputLibrary == 1)
-		{
-			PrintLog("DInput ID1");
-
-			// windows 10 creators update
-			cDIDev_GetDeviceStateOffset = -19504;
-			cDIObj_CreateDeviceWOffset = 800;
-			joyReg_GetConfigOffset = 43434;
-		}
-		else if (Globals::dInputLibrary == 2)
-		{
-			PrintLog("DInput ID2");
-
-			// random windows 10 installation (from a friend's PC)
-			cDIDev_GetDeviceStateOffset = -20032;
-			cDIObj_CreateDeviceWOffset = 832;
-			joyReg_GetConfigOffset = 44031;
-		}
-		else
-		{
-			PrintLog("DInput Unkwnown");
-		}
-
-		void* directInputCreateAPtr = GetProcAddress(dinputModule, "DirectInputCreateA");
-		void* directInputCreateWPtr = GetProcAddress(dinputModule, "DirectInputCreateW");
-
-		if (Globals::dInputForceDisable)
-		{
-			PrintLog("DInput Forced Disable");
-			IH_CreateHook(directInputCreateWPtr, HookDirectInputCreateW, reinterpret_cast<LPVOID*>(&TrueDirectInputCreateW));
-			IH_EnableHook(directInputCreateWPtr);
-
-			if (Globals::dInputLibrary != 0)
-			{
-				// hook to remove all possible calls to DirectInput
-				void* cDIObj_CreateDeviceWPtr = (void*)((DWORD)directInputCreateAPtr + cDIObj_CreateDeviceWOffset);
-				void* joyReg_GetConfigPtr = (void*)((DWORD)directInputCreateAPtr + joyReg_GetConfigOffset);
-
-				IH_CreateHook(cDIObj_CreateDeviceWPtr, HookCDIObj_CreateDeviceW_Disabled, reinterpret_cast<LPVOID*>(&TrueCDIObj_CreateDeviceW));
-				IH_EnableHook(cDIObj_CreateDeviceWPtr);
-
-				IH_CreateHook(joyReg_GetConfigPtr, HookJoyReg_GetConfig_Disabled, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
-				IH_EnableHook(joyReg_GetConfigPtr);
-			}
-		}
-		else if (Globals::dInputEnabled && Globals::dInputLibrary != 0)
-		{
-#ifdef NOT_COMPILE
-			PrintLog("DInput Hook Enabled");
-			//void* cDIDev_GetDeviceStatePtr = (void*)((DWORD)directInputCreateAPtr - 20032);// other version of Windows 10??
-			void* cDIDev_GetDeviceStatePtr = (void*)((DWORD)directInputCreateAPtr + cDIDev_GetDeviceStateOffset);
-			void* cDIObj_CreateDeviceWPtr = (void*)((DWORD)directInputCreateAPtr + cDIObj_CreateDeviceWOffset);
-			void* joyReg_GetConfigPtr = (void*)((DWORD)directInputCreateAPtr + joyReg_GetConfigOffset);
-			void* cDIDev_SetCooperativeLevelPtr = (void*)((DWORD)directInputCreateAPtr - 25616);
-			void* cDIDev_SetDataFormatPtr = (void*)((DWORD)directInputCreateAPtr - 19936);
-			// void* cDIDev_PollPtr = (void*)((DWORD)directInputCreateAPtr - 18720);
-			//void* cDIDev_AcquirePtr = (void*)((DWORD)directInputCreateAPtr - 27696);
-
-			//IH_CreateHook(cDIDev_AcquirePtr, HookCDIDev_Poll, reinterpret_cast<LPVOID*>(&TrueCDIDev_Poll));
-			//IH_EnableHook(cDIDev_AcquirePtr);
-
-			//IH_CreateHook(cDIDev_GetDeviceStatePtr, HookCDIDev_GetDeviceState, reinterpret_cast<LPVOID*>(&TrueCDIDev_GetDeviceState));
-			//IH_EnableHook(cDIDev_GetDeviceStatePtr);
-
-			//IH_CreateHook(cDIDev_SetDataFormatPtr, HookCDIDev_SetDataFormat, reinterpret_cast<LPVOID*>(&TrueCDIDev_SetDataFormat));
-			//IH_EnableHook(cDIDev_SetDataFormatPtr);
-
-			//IH_CreateHook(cDIDev_SetCooperativeLevelPtr, HookCDIDev_SetCooperativeLevel, reinterpret_cast<LPVOID*>(&TrueCDIDev_SetCooperativeLevel));
-			//IH_EnableHook(cDIDev_SetCooperativeLevelPtr);
-
-			// hooking only these 2 work for L4D2 so we are only need them right now
-			IH_CreateHook(cDIObj_CreateDeviceWPtr, HookCDIObj_CreateDeviceW, reinterpret_cast<LPVOID*>(&TrueCDIObj_CreateDeviceW));
-			IH_EnableHook(cDIObj_CreateDeviceWPtr);
-
-			IH_CreateHook(joyReg_GetConfigPtr, HookJoyReg_GetConfig, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
-			IH_EnableHook(joyReg_GetConfigPtr);
-#endif
-
-			/*HMODULE dinput8Module = LoadLibrary(L"dinput8");
-
-			void* directInput8CreatePtr = GetProcAddress(dinput8Module, "DirectInput8Create");
-			void* cDIObj_CreateDeviceW = (void*)((DWORD)directInput8CreatePtr + 58560);
-
-			IH_CreateHook(cDIObj_CreateDeviceW, HookCDIObj_EnumObjectsW, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
-			IH_EnableHook(cDIObj_CreateDeviceW);*/
-		}
-	}
+//	if (Globals::dInputEnabled || Globals::dInputForceDisable)
+//	{
+//		HMODULE dinputModule = LoadLibrary(L"dinput");
+//
+//		DWORD cDIDev_GetDeviceStateOffset = 0;
+//		DWORD cDIObj_CreateDeviceWOffset = 0;
+//		DWORD joyReg_GetConfigOffset = 0;
+//		if (Globals::dInputLibrary == 1)
+//		{
+//			PrintLog("DInput ID1");
+//
+//			// windows 10 creators update
+//			cDIDev_GetDeviceStateOffset = -19504;
+//			cDIObj_CreateDeviceWOffset = 800;
+//			joyReg_GetConfigOffset = 43434;
+//		}
+//		else if (Globals::dInputLibrary == 2)
+//		{
+//			PrintLog("DInput ID2");
+//
+//			// random windows 10 installation (from a friend's PC)
+//			cDIDev_GetDeviceStateOffset = -20032;
+//			cDIObj_CreateDeviceWOffset = 832;
+//			joyReg_GetConfigOffset = 44031;
+//		}
+//		else
+//		{
+//			PrintLog("DInput Unkwnown");
+//		}
+//
+//		void* directInputCreateAPtr = GetProcAddress(dinputModule, "DirectInputCreateA");
+//		void* directInputCreateWPtr = GetProcAddress(dinputModule, "DirectInputCreateW");
+//
+//		if (Globals::dInputForceDisable)
+//		{
+//			PrintLog("DInput Forced Disable");
+//			IH_CreateHook(directInputCreateWPtr, HookDirectInputCreateW, reinterpret_cast<LPVOID*>(&TrueDirectInputCreateW));
+//			IH_EnableHook(directInputCreateWPtr);
+//
+//			if (Globals::dInputLibrary != 0)
+//			{
+//				// hook to remove all possible calls to DirectInput
+//				void* cDIObj_CreateDeviceWPtr = (void*)((DWORD)directInputCreateAPtr + cDIObj_CreateDeviceWOffset);
+//				void* joyReg_GetConfigPtr = (void*)((DWORD)directInputCreateAPtr + joyReg_GetConfigOffset);
+//
+//				IH_CreateHook(cDIObj_CreateDeviceWPtr, HookCDIObj_CreateDeviceW_Disabled, reinterpret_cast<LPVOID*>(&TrueCDIObj_CreateDeviceW));
+//				IH_EnableHook(cDIObj_CreateDeviceWPtr);
+//
+//				IH_CreateHook(joyReg_GetConfigPtr, HookJoyReg_GetConfig_Disabled, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
+//				IH_EnableHook(joyReg_GetConfigPtr);
+//			}
+//		}
+//		else if (Globals::dInputEnabled && Globals::dInputLibrary != 0)
+//		{
+//#ifdef NOT_COMPILE
+//			PrintLog("DInput Hook Enabled");
+//			//void* cDIDev_GetDeviceStatePtr = (void*)((DWORD)directInputCreateAPtr - 20032);// other version of Windows 10??
+//			void* cDIDev_GetDeviceStatePtr = (void*)((DWORD)directInputCreateAPtr + cDIDev_GetDeviceStateOffset);
+//			void* cDIObj_CreateDeviceWPtr = (void*)((DWORD)directInputCreateAPtr + cDIObj_CreateDeviceWOffset);
+//			void* joyReg_GetConfigPtr = (void*)((DWORD)directInputCreateAPtr + joyReg_GetConfigOffset);
+//			void* cDIDev_SetCooperativeLevelPtr = (void*)((DWORD)directInputCreateAPtr - 25616);
+//			void* cDIDev_SetDataFormatPtr = (void*)((DWORD)directInputCreateAPtr - 19936);
+//			// void* cDIDev_PollPtr = (void*)((DWORD)directInputCreateAPtr - 18720);
+//			//void* cDIDev_AcquirePtr = (void*)((DWORD)directInputCreateAPtr - 27696);
+//
+//			//IH_CreateHook(cDIDev_AcquirePtr, HookCDIDev_Poll, reinterpret_cast<LPVOID*>(&TrueCDIDev_Poll));
+//			//IH_EnableHook(cDIDev_AcquirePtr);
+//
+//			//IH_CreateHook(cDIDev_GetDeviceStatePtr, HookCDIDev_GetDeviceState, reinterpret_cast<LPVOID*>(&TrueCDIDev_GetDeviceState));
+//			//IH_EnableHook(cDIDev_GetDeviceStatePtr);
+//
+//			//IH_CreateHook(cDIDev_SetDataFormatPtr, HookCDIDev_SetDataFormat, reinterpret_cast<LPVOID*>(&TrueCDIDev_SetDataFormat));
+//			//IH_EnableHook(cDIDev_SetDataFormatPtr);
+//
+//			//IH_CreateHook(cDIDev_SetCooperativeLevelPtr, HookCDIDev_SetCooperativeLevel, reinterpret_cast<LPVOID*>(&TrueCDIDev_SetCooperativeLevel));
+//			//IH_EnableHook(cDIDev_SetCooperativeLevelPtr);
+//
+//			// hooking only these 2 work for L4D2 so we are only need them right now
+//			IH_CreateHook(cDIObj_CreateDeviceWPtr, HookCDIObj_CreateDeviceW, reinterpret_cast<LPVOID*>(&TrueCDIObj_CreateDeviceW));
+//			IH_EnableHook(cDIObj_CreateDeviceWPtr);
+//
+//			IH_CreateHook(joyReg_GetConfigPtr, HookJoyReg_GetConfig, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
+//			IH_EnableHook(joyReg_GetConfigPtr);
+//#endif
+//
+//			/*HMODULE dinput8Module = LoadLibrary(L"dinput8");
+//
+//			void* directInput8CreatePtr = GetProcAddress(dinput8Module, "DirectInput8Create");
+//			void* cDIObj_CreateDeviceW = (void*)((DWORD)directInput8CreatePtr + 58560);
+//
+//			IH_CreateHook(cDIObj_CreateDeviceW, HookCDIObj_EnumObjectsW, reinterpret_cast<LPVOID*>(&TrueJoyReg_GetConfig));
+//			IH_EnableHook(cDIObj_CreateDeviceW);*/
+//		}
+//	}
 
 	HandleForceFocus();
 
@@ -1398,6 +1387,13 @@ VOID InitInstance()
 	std::string forceFocusWindowRegex;
 	ini.Get("Options", "ForceFocusWindowRegex", &forceFocusWindowRegex);
 	Globals::forceFocusWindowRegex = KeepString(forceFocusWindowRegex);
+
+	if (Globals::forceFocus) {
+		if (Globals::forceFocusWindowRegex->length() == 0) {
+			MessageBox(NULL, L"BAD NUCLEUS CONFIG, no Window Regex name!!", L"BAD NUCLEUS CONFIG", MB_OK);
+			ExitProcess(500);
+		}
+	}
 
 	ini.Get("Options", "WindowX", &Globals::windowX);
 	ini.Get("Options", "WindowY", &Globals::windowY);
