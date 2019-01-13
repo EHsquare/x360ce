@@ -143,6 +143,8 @@ typedef HWND(WINAPI* SetWindowPosProc)(HWND, HWND, int, int, int, int, UINT);
 typedef long(WINAPI* GetWindowLongWProc)(HWND, int);
 typedef LONG(WINAPI* SetWindowLongWProc)(HWND, int, LONG);
 typedef BOOL(WINAPI* ClipCursorProc)(RECT*);
+typedef UINT(WINAPI* GetRawInputDataProc)(HRAWINPUT, UINT, LPVOID, PUINT, UINT);
+
 
 WNDPROC TrueWndProc = nullptr;
 HWND GameHWND = nullptr;
@@ -157,6 +159,17 @@ GetHwndProc TrueGetFocus = nullptr;
 GetWindowLongWProc TrueGetWindowLongW = nullptr;
 SetWindowLongWProc TrueSetWindowLongW = nullptr;
 ClipCursorProc TrueClipCursor = nullptr;
+GetRawInputDataProc TrueGetRawInputData = nullptr;
+
+int SetX = 0;
+int SetY = 0;
+
+extern "C" UINT HookGetRawInputData(HRAWINPUT hRawInput, UINT uiCommand, LPVOID pData, PUINT pcbSize, UINT cbSizeHeader) {
+	return 0;
+
+	//return TrueGetRawInputData(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
+	//
+}
 
 extern "C" long WINAPI HookGetWindowLongW(HWND wnd, int nIndex)
 {
@@ -168,21 +181,21 @@ extern "C" long WINAPI HookGetWindowLongW(HWND wnd, int nIndex)
 	return result;
 }
 
-int SetX = 0;
-int SetY = 0;
-
 extern "C" BOOL WINAPI HookSetCursorPos(int x, int y)
 {
-	SetX = x;
-	SetY = y;
-	return 1;
+	//SetX = x;
+	//SetY = y;
+	return true;
 }
 
 extern "C" BOOL WINAPI HookGetCursorPos(LPPOINT pt)
 {
-	pt->x = SetX;
-	pt->y = SetY;
-	return 1;
+	/*pt->x = SetX;
+	pt->y = SetY;*/
+
+	pt->x = 0;
+	pt->y = 0;
+	return true;
 }
 
 extern "C" BOOL WINAPI HookClipCursor(RECT* lpRect)
@@ -473,7 +486,8 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		}
 
 		RECT rectHwnd;
-		GetClientRect(GameHWND, &rectHwnd);
+		//GetClientRect(GameHWND, &rectHwnd);
+		GetWindowRect(GameHWND, &rectHwnd);
 
 		if (rectHwnd.left != x ||
 			rectHwnd.top != y ||
@@ -482,6 +496,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 			// aproximate size else it might not work TODO
 			rectHwnd.right < ((width / 10) * 8) ||
 			rectHwnd.bottom < ((height / 10) * 8)) {
+
 		}
 		else {
 			Globals::hasSetPosition = true;
@@ -518,8 +533,9 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_NCACTIVATE:
 		// Sent to a window when its nonclient area needs to be changed to indicate an active or inactive state.
 		// Faked: wParam is always true, so the window always looks active
+		PrintLog(("Blocked WM_NCACTIVATE: " + std::to_string(message)).c_str());
+		//return 0;
 		return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
-		return 0;
 
 	case WM_NCHITTEST:
 		// System is checking if the mouse is inside the game screen, but we dont want
@@ -528,21 +544,25 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		if (Globals::enableMKBInput) {
 			break;
 		}
-		PrintLog(("Blocked: " + std::to_string(message)).c_str());
-		return 0;
+
+		PrintLog(("Blocked chit test: " + std::to_string(message)).c_str());
+		break;
+		return HTNOWHERE;
 
 	case WM_IME_SETCONTEXT:
-		PrintLog(("Blocked: " + std::to_string(message)).c_str());
-		return 0;
-		return CallWindowProc(TrueWndProc, hWnd, message, wParam, 0);
+		// Sent to an application when a window is activated.
+		PrintLog(("Blocked WM_IME_SETCONTEXT: " + std::to_string(message)).c_str());
+		//return 0;
+		return CallWindowProc(TrueWndProc, hWnd, message, true, 0);
 
 	case WM_IME_NOTIFY:
-		PrintLog(("Blocked: " + std::to_string(message)).c_str());
-		return 0;// return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
+		//PrintLog(("Blocked WM_IME_NOTIFY: " + std::to_string(message)).c_str());
+		//return 0;
+		return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
 
 	case WM_ACTIVATE:
 		// msdn: Sent to both the window being activated and the window being deactivated
-		PrintLog(("Blocked: " + std::to_string(message)).c_str());
+		PrintLog(("Blocked WM_ACTIVATE: " + std::to_string(message)).c_str());
 		return 0;
 		return CallWindowProc(TrueWndProc, hWnd, message, 1, NULL);
 
@@ -558,7 +578,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_CAPTURECHANGED:
 	case WM_ACTIVATEAPP:
 		//PrintLog(("Event blocked: " + std::to_string(message)).c_str());
-		PrintLog(("Blocked: " + std::to_string(message)).c_str());
+		PrintLog(("Blocked Focus: " + std::to_string(message)).c_str());
 		return 0;
 
 		// Mouse and shit
@@ -620,8 +640,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 			r.bottom = Globals::windowY + Globals::resHeight;
 			TrueClipCursor(&r);
 		}
-		//return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
-		//return CallWindowProc((WNDPROC)gameSetWindowLongW, hWnd, message, wParam, lParam);
+
 		if (Globals::enableMKBInput)
 		{
 			break;
@@ -843,7 +862,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 }
 
 
-extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong){
+extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong) {
 	PrintLog(("HookSetWindowLongW: " + std::to_string(nIndex) + " " + std::to_string(dwNewLong)).c_str());
 	//return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
 
@@ -858,9 +877,6 @@ extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong){
 
 		// overwrite with our own wnd proc
 		return (LONG)TrueWndProc;
-	}
-	else if (nIndex == GWL_STYLE) {
-		return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
 	}
 	else {
 		return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
@@ -988,8 +1004,11 @@ void HandleForceFocus()
 					IH_CreateHook(clipCursorPtr, HookClipCursor, reinterpret_cast<LPVOID*>(&TrueClipCursor));
 					IH_EnableHook(clipCursorPtr);
 
-					if (!Globals::enableMKBInput)
-					{
+					if (!Globals::enableMKBInput) {
+						void* getRawInputData = GetProcAddress(mod, "GetRawInputData");
+						IH_CreateHook(getRawInputData, HookGetRawInputData, reinterpret_cast<LPVOID*>(&TrueGetRawInputData));
+						IH_EnableHook(getRawInputData);
+
 						void* setCursorPosPtr = GetProcAddress(mod, "SetCursorPos");
 						IH_CreateHook(setCursorPosPtr, HookSetCursorPos, reinterpret_cast<LPVOID*>(&TrueSetCursorPos));
 						IH_EnableHook(setCursorPosPtr);
@@ -997,6 +1016,8 @@ void HandleForceFocus()
 						void* getCursorPosPtr = GetProcAddress(mod, "GetCursorPos");
 						IH_CreateHook(getCursorPosPtr, HookGetCursorPos, reinterpret_cast<LPVOID*>(&TrueGetCursorPos));
 						IH_EnableHook(getCursorPosPtr);
+
+						PrintLog("Hooked to cursor functions");
 					}
 
 					PrintLog("Hooked to game window");
