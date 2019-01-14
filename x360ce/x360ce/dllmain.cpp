@@ -68,6 +68,14 @@ CDIDev_SetDataFormatProc TrueCDIDev_SetDataFormat = nullptr;
 CDIDev_PollProc TrueCDIDev_Poll = nullptr;
 DirectInputCreateWProc TrueDirectInputCreateW = nullptr;
 
+template <typename I> std::string int_to_hex(I w, size_t hex_len = sizeof(I) << 1) {
+	static const char* digits = "0123456789ABCDEF";
+	std::string rc(hex_len, '0');
+	for (size_t i = 0, j = (hex_len - 1) * 4; i < hex_len; ++i, j -= 4)
+		rc[i] = digits[(w >> j) & 0x0f];
+	return rc;
+}
+
 // dinput.dll hooks
 HRESULT HookDirectInputCreateW(HINSTANCE hInst, DWORD dwVersion, LPDIRECTINPUTW* ppDI, LPUNKNOWN punkOuter)
 {
@@ -165,15 +173,33 @@ SetWindowLongWProc TrueSetWindowLongW = nullptr;
 ClipCursorProc TrueClipCursor = nullptr;
 GetRawInputDataProc TrueGetRawInputData = nullptr;
 
-
 int SetX = 0;
 int SetY = 0;
 
 extern "C" UINT HookGetRawInputData(HRAWINPUT hRawInput, UINT uiCommand, LPVOID pData, PUINT pcbSize, UINT cbSizeHeader) {
-	return 0;
+	if (Globals::enableMKBInput) {
+		return TrueGetRawInputData(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
+	}
+	else {
+		return 0;
+	}
+	// wtf?
 
-	//return TrueGetRawInputData(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
-	//
+	//RAWINPUT* raw = (RAWINPUT*)pData;
+	//// delete data
+	//if (raw->header.dwType == RIM_TYPEMOUSE)
+	//{
+	//	raw->data.mouse.ulRawButtons = 0;
+	//	raw->data.mouse.lLastX = 0;
+	//	raw->data.mouse.lLastY = 0;
+	//}
+	//else if (raw->header.dwType == RIM_TYPEKEYBOARD)
+	//{
+	//	raw->data.keyboard.VKey = 0;
+	//	raw->data.keyboard.Message = 0;
+	//}
+
+	//return result;
 }
 
 extern "C" long WINAPI HookGetWindowLongW(HWND wnd, int nIndex)
@@ -193,18 +219,15 @@ extern "C" long WINAPI HookGetWindowLongW(HWND wnd, int nIndex)
 
 extern "C" BOOL WINAPI HookSetCursorPos(int x, int y)
 {
-	//SetX = x;
-	//SetY = y;
+	SetX = x;
+	SetY = y;
 	return true;
 }
 
 extern "C" BOOL WINAPI HookGetCursorPos(LPPOINT pt)
 {
-	/*pt->x = SetX;
-	pt->y = SetY;*/
-
-	pt->x = 0;
-	pt->y = 0;
+	pt->x = SetX;
+	pt->y = SetY;
 	return true;
 }
 
@@ -417,7 +440,6 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 
 		// forward Window changing events
 		switch (message) {
-
 		case WM_GETMINMAXINFO:
 		case WM_WINDOWPOSCHANGING:
 		case WM_WINDOWPOSCHANGED:
@@ -454,21 +476,20 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 				bool setEverything = true;
 				if (hwndRect.left != x ||
 					hwndRect.top != y) {
-					PrintLog("Reset position");
-
+					PrintLog(("Reset position " + std::to_string(x) + "x" + std::to_string(y)).c_str());
 					setEverything = false;
 					Globals::hasSetPosition = false;
-					Globals::hasSetSize = false;
 				}
 
 				RECT clientRect;
 				GetClientRect(GameHWND, &clientRect);
 
-				if ((hwndRect.right <= width && ((width / 10) * 8) > ((width / 10) * 8)) ||
+				if ((hwndRect.right <= width && hwndRect.right > ((width / 10) * 8)) ||
 					(hwndRect.bottom <= height && hwndRect.bottom > ((height / 10) * 8))) {
 					// 10/10 programming
 				}
 				else {
+					PrintLog(("Reset size " + std::to_string(clientRect.right) + "x" + std::to_string(clientRect.bottom)).c_str());
 					setEverything = false;
 					Globals::hasSetSize = false;
 				}
@@ -516,7 +537,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 					// less or equal to the actual size,
 					// but 80% offset to make sure
 					// TODO: this is terrible
-					if ((hwndRect.right <= width && ((width / 10) * 8) > ((width / 10) * 8)) ||
+					if ((hwndRect.right <= width && hwndRect.right > ((width / 10) * 8)) ||
 						(hwndRect.bottom <= height && hwndRect.bottom > ((height / 10) * 8))) {
 						PrintLog(("Fixed size: " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
 						Globals::hasSetSize = true;
@@ -604,7 +625,6 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		}
 	}
 
-
 	switch (message)
 	{
 		// window changing events
@@ -620,33 +640,6 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_STYLECHANGED:
 		changingStyle = false;
 		break;
-
-		//PrintLog(("Event: " + std::to_string(message)).c_str());
-		//return CallWindowProc(TrueWndProc, hWnd, message, wParam, lParam);
-	case WM_INPUT: // raw mouse input?
-	case WM_IME_SETCONTEXT:
-	case WM_NCACTIVATE:
-		// Sent to a window when its nonclient area needs to be changed to indicate an active or inactive state.
-	case WM_IME_NOTIFY:
-	case WM_ACTIVATE:
-
-		if (Globals::enableMKBInput)
-		{
-			break;
-		}
-		else
-		{
-			return 0;
-		}
-
-	case WM_NCHITTEST:
-		// System is checking if the mouse is inside the game screen, but we dont want
-		// that call to ever be recognized by the game
-		// ??? needed for borderlands to detect mouse
-		if (Globals::enableMKBInput) {
-			break;
-		}
-		return HTNOWHERE;
 
 	case WM_SETFOCUS:
 	case WM_KILLFOCUS:
@@ -702,6 +695,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		}
 		else
 		{
+			//PrintLog(("No MKB Input blocked: " + int_to_hex(message) + " " + std::to_string(gameSetWindowLongW)).c_str());
 			return 0;
 		}
 
@@ -737,8 +731,36 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		}
 		else
 		{
+			//PrintLog(("No MKB Input blocked: " + int_to_hex(message) + " " + std::to_string(gameSetWindowLongW)).c_str());
 			return 0;
 		}
+
+	case WM_IME_SETCONTEXT:
+		break;
+
+	case WM_INPUT: // raw mouse input?
+	case WM_NCACTIVATE: // Sent to a window when its nonclient area needs to be changed to indicate an active or inactive state.
+	case WM_IME_NOTIFY:
+	case WM_ACTIVATE:
+		if (Globals::enableMKBInput)
+		{
+			break;
+		}
+		else
+		{
+			//PrintLog(("No MKB Input blocked: " + int_to_hex(message) + " " + std::to_string(gameSetWindowLongW)).c_str());
+			return 0;
+		}
+
+	case WM_NCHITTEST:
+		// System is checking if the mouse is inside the game screen, but we dont want
+		// that call to ever be recognized by the game
+		// ??? needed for borderlands to detect mouse
+		if (Globals::enableMKBInput) {
+			break;
+		}
+		//PrintLog(("No MKB Input chit ignored: " + int_to_hex(message) + " " + std::to_string(gameSetWindowLongW)).c_str());
+		return HTNOWHERE;
 
 		// keyboard
 	case WM_KEYDOWN:
@@ -754,6 +776,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		}
 		else
 		{
+			//PrintLog(("No MKB Input keyboard blocked: " + int_to_hex(message) + " " + std::to_string(gameSetWindowLongW)).c_str());
 			return 0;
 		}
 
@@ -903,14 +926,14 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	case WM_CREATE:
 	case WM_CHILDACTIVATE:
 	{
-		PrintLog(("Unknown: " + std::to_string(message)).c_str());
+		PrintLog(("Unknown: " + int_to_hex(message)).c_str());
 		break;
 	}
 
 	default: {
 		// WM_NCUAHDRAWCAPTION
 		//return 0;
-		PrintLog(("Defaulted: " + std::to_string(message)).c_str());
+		PrintLog(("Defaulted: " + int_to_hex(message)).c_str());
 		break;
 	}
 
@@ -948,8 +971,6 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 bool resetOnce = false;
 
 extern "C" bool WINAPI HookSetWindowPos(_In_ HWND hWnd, _In_opt_  HWND insertAfter, _In_ int x, _In_ int y, _In_ int cx, _In_ int cy, _In_ UINT uflags) {
-	PrintLog(("HookSetWindowPos: " + std::to_string(uflags)).c_str());
-
 	/*if (justFixedWindow && !fixingWindow) {
 		return true;
 	}*/
