@@ -31,8 +31,8 @@ bool Globals::enableMKBInput = true;
 bool Globals::forceFocus = false;
 std::wstring* Globals::forceFocusWindowRegex = nullptr;
 
-DWORD Globals::windowY = 0;
-DWORD Globals::windowX = 0;
+long Globals::windowY = 0;
+long Globals::windowX = 0;
 DWORD Globals::resWidth = 0;
 DWORD Globals::resHeight = 0;
 

@@ -22,8 +22,9 @@ public:
 	static bool forceFocus;
 	static std::wstring* forceFocusWindowRegex;
 
-	static DWORD windowY;
-	static DWORD windowX;
+	// signed long!
+	static long windowY;
+	static long windowX;
 	static DWORD resWidth;
 	static DWORD resHeight;
 

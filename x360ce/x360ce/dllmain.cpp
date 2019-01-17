@@ -30,43 +30,7 @@ POINT titleSize;
 LONG windowStyle = 0;
 LONG windowExStyle = 0;
 LONG_PTR HookWndProcPtr = 0;
-
-//typedef NTSTATUS(WINAPI* HidP_GetButtonCapsProc)(_In_ HIDP_REPORT_TYPE, _Out_ PHIDP_BUTTON_CAPS, _Inout_ PUSHORT, _In_ PHIDP_PREPARSED_DATA);
-//typedef NTSTATUS(WINAPI* HidP_GetUsagesProc)(_In_    HIDP_REPORT_TYPE, _In_    USAGE, _In_    USHORT, _Out_   PUSAGE, _Inout_ PULONG, _In_    PHIDP_PREPARSED_DATA, _Out_   PCHAR, _In_    ULONG);
-//typedef NTSTATUS(WINAPI* HidP_GetUsageValueProc)(_In_  HIDP_REPORT_TYPE, _In_  USAGE, _In_  USHORT, _In_  USAGE, _Out_ PULONG, _In_  PHIDP_PREPARSED_DATA, _In_  PCHAR, _In_  ULONG);
-//typedef NTSTATUS(WINAPI* HidP_GetDataProc)(_In_    HIDP_REPORT_TYPE, _Out_   PHIDP_DATA, _Inout_ PULONG, _In_    PHIDP_PREPARSED_DATA, _In_    PCHAR, _In_    ULONG);
-//typedef void (WINAPI* HidD_GetHidGuidProc)(_Out_ LPGUID HidGuid);
-//typedef HANDLE(WINAPI* CreateFileProc)(_In_     LPCTSTR, _In_     DWORD, _In_     DWORD, _In_opt_ LPSECURITY_ATTRIBUTES, _In_     DWORD, _In_     DWORD, _In_opt_ HANDLE);
-//typedef int(WINAPI* CHid_GetDeviceStateProc)(int*, void*);
-//typedef int(WINAPI* CDIDev_CreateDeviceProc)(int*, int, void*, void*);
-//typedef signed int(__thiscall* GetDeviceInfoProc)(void*, LPDIDEVICEINSTANCE pdidi);
-//LPDIENUMDEVICEOBJECTSCALLBACK
-typedef signed int(__stdcall* CDIObj_EnumObjectsWProc)(int, LPDIENUMDEVICEOBJECTSCALLBACK, int, unsigned int);
-typedef signed int(__stdcall* CDIObj_CreateDeviceWProc)(int, REFGUID, LPDIRECTINPUTDEVICE, LPUNKNOWN);
-typedef int(_stdcall* CDIDev_SetCooperativeLevelProc)(LPDIRECTINPUTDEVICE, HWND, int);
-typedef signed int(__fastcall* JoyReg_GetConfigProc)(unsigned int, UINT, LPDIJOYCONFIG, DWORD);
-typedef HRESULT(__thiscall* CDIDev_GetDeviceStateProc)(void*, IDirectInputDevice2W*, int, int);
-typedef HRESULT(__thiscall* CDIDev_PollProc)(void*);
-typedef HRESULT(__stdcall* CDIDev_SetDataFormatProc)(int*, int);
-typedef HRESULT(__stdcall* DirectInputCreateWProc)(HINSTANCE, DWORD, LPDIRECTINPUTW*, LPUNKNOWN);
-
-//HidP_GetButtonCapsProc TrueHidP_GetButtonCaps = nullptr;
-//HidP_GetUsagesProc TrueHidP_GetUsages = nullptr;
-//HidP_GetUsageValueProc TrueHidP_GetUsageValue = nullptr;
-//HidP_GetDataProc TrueHidP_GetData = nullptr;
-//HidD_GetHidGuidProc TrueHidD_GetHidGuidProc = nullptr;
-//CreateFileProc TrueCreateFileProc = nullptr;
-//CHid_GetDeviceStateProc TrueCHid_GetDeviceState = nullptr;
-//CDIDev_CreateDeviceProc TrueCDIDev_CreateDeviceW = nullptr;
-//GetDeviceInfoProc TrueGetDeviceInfo = nullptr;
-CDIObj_EnumObjectsWProc TrueCDIObj_EnumObjectsW = nullptr;
-CDIObj_CreateDeviceWProc TrueCDIObj_CreateDeviceW = nullptr;
-CDIDev_GetDeviceStateProc TrueCDIDev_GetDeviceState = nullptr;
-JoyReg_GetConfigProc TrueJoyReg_GetConfig = nullptr;
-CDIDev_SetCooperativeLevelProc TrueCDIDev_SetCooperativeLevel = nullptr;
-CDIDev_SetDataFormatProc TrueCDIDev_SetDataFormat = nullptr;
-CDIDev_PollProc TrueCDIDev_Poll = nullptr;
-DirectInputCreateWProc TrueDirectInputCreateW = nullptr;
+WCHAR* str = new WCHAR[50];
 
 template <typename I> std::string int_to_hex(I w, size_t hex_len = sizeof(I) << 1) {
 	static const char* digits = "0123456789ABCDEF";
@@ -76,75 +40,6 @@ template <typename I> std::string int_to_hex(I w, size_t hex_len = sizeof(I) << 
 	return rc;
 }
 
-// dinput.dll hooks
-HRESULT HookDirectInputCreateW(HINSTANCE hInst, DWORD dwVersion, LPDIRECTINPUTW* ppDI, LPUNKNOWN punkOuter)
-{
-	return DIERR_INVALIDPARAM;
-}
-
-//NTSTATUS __stdcall HookHidP_GetButtonCaps(_In_    HIDP_REPORT_TYPE     ReportType,
-//	_Out_   PHIDP_BUTTON_CAPS    ButtonCaps,
-//	_Inout_ PUSHORT              ButtonCapsLength,
-//	_In_    PHIDP_PREPARSED_DATA PreparsedData)
-//{
-//	PrintLog("HidP_GetButtonCaps");
-//	return TrueHidP_GetButtonCaps(ReportType, ButtonCaps, ButtonCapsLength, PreparsedData);
-//}
-//
-//NTSTATUS __stdcall HookHidP_GetUsages(_In_    HIDP_REPORT_TYPE     ReportType,
-//	_In_    USAGE                UsagePage,
-//	_In_    USHORT               LinkCollection,
-//	_Out_   PUSAGE               UsageList,
-//	_Inout_ PULONG               UsageLength,
-//	_In_    PHIDP_PREPARSED_DATA PreparsedData,
-//	_Out_   PCHAR                Report,
-//	_In_    ULONG                ReportLength)
-//{
-//	PrintLog("HidP_GetUsages");
-//	return TrueHidP_GetUsages(ReportType, UsagePage, LinkCollection, UsageList, UsageLength, PreparsedData, Report, ReportLength);
-//}
-//
-//NTSTATUS __stdcall HookHidP_GetUsageValue(_In_  HIDP_REPORT_TYPE     ReportType,
-//	_In_  USAGE                UsagePage,
-//	_In_  USHORT               LinkCollection,
-//	_In_  USAGE                Usage,
-//	_Out_ PULONG               UsageValue,
-//	_In_  PHIDP_PREPARSED_DATA PreparsedData,
-//	_In_  PCHAR                Report,
-//	_In_  ULONG                ReportLength)
-//{
-//	PrintLog("HidP_GetUsageValue");
-//	return TrueHidP_GetUsageValue(ReportType, UsagePage, LinkCollection, Usage, UsageValue, PreparsedData, Report, ReportLength);
-//}
-//
-//NTSTATUS __stdcall HookHidP_GetData(_In_ HIDP_REPORT_TYPE ReportType,
-//	_Out_   PHIDP_DATA           DataList,
-//	_Inout_ PULONG               DataLength,
-//	_In_    PHIDP_PREPARSED_DATA PreparsedData,
-//	_In_    PCHAR                Report,
-//	_In_    ULONG                ReportLength)
-//{
-//	//PrintLog("HidP_GetData");
-//	return TrueHidP_GetData(ReportType, DataList, DataLength, PreparsedData, Report, ReportLength);
-//}
-//
-//HANDLE WINAPI HookCreateFile(_In_  LPCTSTR lpFileName,
-//	_In_     DWORD                 dwDesiredAccess,
-//	_In_     DWORD                 dwShareMode,
-//	_In_opt_ LPSECURITY_ATTRIBUTES lpSecurityAttributes,
-//	_In_     DWORD                 dwCreationDisposition,
-//	_In_     DWORD                 dwFlagsAndAttributes,
-//	_In_opt_ HANDLE                hTemplateFile)
-//{
-//	//PrintLog("CreateFile " + CStringA(lpFileName));
-//	return TrueCreateFileProc(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
-//}
-//
-//int HookCHid_GetDeviceState(int* a, void* dst)
-//{
-//	PrintLog(("HookCHid_GetDeviceState A:" + std::to_string((DWORD)a)).c_str());
-//	return TrueCHid_GetDeviceState(a, dst);
-//}
 typedef HWND(WINAPI* GetForegroundProc)(void);
 typedef bool(WINAPI* SetForegroundProc)(HWND);
 typedef HWND(WINAPI* GetHwndProc)(void);
@@ -156,7 +51,6 @@ typedef long(WINAPI* GetWindowLongWProc)(HWND, int);
 typedef LONG(WINAPI* SetWindowLongWProc)(HWND, int, LONG);
 typedef BOOL(WINAPI* ClipCursorProc)(RECT*);
 typedef UINT(WINAPI* GetRawInputDataProc)(HRAWINPUT, UINT, LPVOID, PUINT, UINT);
-
 
 WNDPROC TrueWndProc = nullptr;
 HWND GameHWND = nullptr;
@@ -173,48 +67,51 @@ SetWindowLongWProc TrueSetWindowLongW = nullptr;
 ClipCursorProc TrueClipCursor = nullptr;
 GetRawInputDataProc TrueGetRawInputData = nullptr;
 
+RAWINPUT* emptyMouseInput = new RAWINPUT();
+bool copiedToEmpty = false;
+
+void SetupEmptyMouse() {
+	emptyMouseInput->header.dwType = RIM_TYPEMOUSE;
+	emptyMouseInput->data.mouse.lLastX = 0;
+	emptyMouseInput->data.mouse.lLastY = 0;
+	emptyMouseInput->data.mouse.ulButtons = 0;
+	emptyMouseInput->data.mouse.ulExtraInformation = 0;
+	emptyMouseInput->data.mouse.ulRawButtons = 0;
+	emptyMouseInput->data.mouse.usButtonData = 0;
+	emptyMouseInput->data.mouse.usButtonFlags = 0;
+	emptyMouseInput->data.mouse.usFlags = 0;
+	PrintLog("empty mouse input");
+}
+
 int SetX = 0;
 int SetY = 0;
 
 extern "C" UINT HookGetRawInputData(HRAWINPUT hRawInput, UINT uiCommand, LPVOID pData, PUINT pcbSize, UINT cbSizeHeader) {
-	if (Globals::enableMKBInput) {
-		return TrueGetRawInputData(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
-	}
-	else {
-		return 0;
-	}
-	// wtf?
+	UINT result = TrueGetRawInputData(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
+	if (uiCommand == RID_INPUT) {
+		if (pData != NULL) {
+			RAWINPUT* raw = (RAWINPUT*)pData;
 
-	//RAWINPUT* raw = (RAWINPUT*)pData;
-	//// delete data
-	//if (raw->header.dwType == RIM_TYPEMOUSE)
-	//{
-	//	raw->data.mouse.ulRawButtons = 0;
-	//	raw->data.mouse.lLastX = 0;
-	//	raw->data.mouse.lLastY = 0;
-	//}
-	//else if (raw->header.dwType == RIM_TYPEKEYBOARD)
-	//{
-	//	raw->data.keyboard.VKey = 0;
-	//	raw->data.keyboard.Message = 0;
-	//}
-
-	//return result;
-}
-
-extern "C" long WINAPI HookGetWindowLongW(HWND wnd, int nIndex)
-{
-	if (wnd == GameHWND)
-	{
-		if (nIndex == GWL_STYLE) {
-			return windowStyle;
-		}
-		else if (nIndex == GWL_EXSTYLE) {
-			return windowExStyle;
+			// delete any input data
+			if (raw->header.dwType == RIM_TYPEMOUSE)
+			{
+				if (!copiedToEmpty) {
+					copiedToEmpty = true;
+					emptyMouseInput->header.dwSize = raw->header.dwSize;
+					emptyMouseInput->header.hDevice = raw->header.hDevice;
+					emptyMouseInput->header.wParam = raw->header.wParam;
+				}
+				pData = emptyMouseInput;
+			}
+			/*else if (raw->header.dwType == RIM_TYPEKEYBOARD)
+			{
+				raw->data.keyboard.VKey = 0;
+				raw->data.keyboard.Message = 0;
+			}*/
 		}
 	}
 
-	return TrueGetWindowLongW(wnd, nIndex);
+	return result;
 }
 
 extern "C" BOOL WINAPI HookSetCursorPos(int x, int y)
@@ -233,20 +130,6 @@ extern "C" BOOL WINAPI HookGetCursorPos(LPPOINT pt)
 
 extern "C" BOOL WINAPI HookClipCursor(RECT* lpRect)
 {
-	//if (Globals::clipMouse)
-	//{
-	//	RECT r;
-	//	r.left = Globals::windowX;
-	//	r.right = Globals::windowX + Globals::resWidth;
-	//	r.top = Globals::windowY;
-	//	r.bottom = Globals::windowY + Globals::resHeight;
-
-	//	/*lpRect->left = Globals::windowX;
-	//	lpRect->right = Globals::windowX + Globals::resWidth;
-	//	lpRect->top = Globals::windowY;
-	//	lpRect->bottom = Globals::windowY + Globals::resHeight;*/
-	//}
-
 	return true;
 }
 
@@ -274,7 +157,6 @@ extern "C" HWND WINAPI HookSetActiveWindow(HWND hWnd)
 {
 	return NULL;
 }
-
 
 struct EnumWindowsCallbackArgs {
 	EnumWindowsCallbackArgs(DWORD p) : pid(p) { }
@@ -305,136 +187,10 @@ std::vector<HWND> getToplevelWindows()
 	return args.handles;
 }
 
-LPDIENUMDEVICEOBJECTSCALLBACK tempCallback;
-
-extern "C" bool __stdcall HookCDIObj_EnumObjectsWCallback(DIDEVICEOBJECTINSTANCEW* instance, void* function)
-{
-	return DIENUM_CONTINUE;
-}
-
-extern "C" signed int __stdcall HookCDIObj_EnumObjectsW(int a1, LPDIENUMDEVICEOBJECTSCALLBACK callback, int a3, unsigned int a4)
-{
-	tempCallback = callback;
-	int retValue = TrueCDIObj_EnumObjectsW(a1, (LPDIENUMDEVICEOBJECTSCALLBACK)HookCDIObj_EnumObjectsWCallback, a3, a4);
-	tempCallback = nullptr;
-
-	return retValue;
-}
-
-LPDIRECTINPUTDEVICE DevicePtr;
-
-extern "C" signed int __stdcall HookCDIObj_CreateDeviceW_Disabled(int a1, REFGUID rguid, LPDIRECTINPUTDEVICE device, LPUNKNOWN pUnkOuter)
-{
-	return DIERR_OUTOFMEMORY;
-}
-
-extern "C" signed int __stdcall HookCDIObj_CreateDeviceW(int a1, REFGUID rguid, LPDIRECTINPUTDEVICE device, LPUNKNOWN pUnkOuter)
-{
-	GUID iguid = rguid;
-	if (iguid == Globals::dInputPlayerGuid && GameHWND != NULL)
-	{
-		int result = TrueCDIObj_CreateDeviceW(a1, rguid, device, pUnkOuter);
-		DevicePtr = device;
-
-		//IDirectInputDevice2W* test = (IDirectInputDevice2W*)device;
-		//Sleep(100);
-		//HRESULT res = device->SetCooperativeLevel(GameHWND, DISCL_BACKGROUND | DISCL_EXCLUSIVE);
-		//TrueCDIDev_SetCooperativeLevel(device, GameHWND, DISCL_BACKGROUND | DISCL_EXCLUSIVE);
-
-		return result;
-	}
-	else
-	{
-		// noooope we dont allow you to access this gamepad
-		return DIERR_OUTOFMEMORY;
-	}
-}
-
-extern "C" signed int __fastcall HookJoyReg_GetConfig_Disabled(unsigned int a1, UINT uiJoy, LPDIJOYCONFIG pjc, DWORD dwFlags)
-{
-	return DIERR_NOMOREITEMS;
-}
-
-extern "C" signed int __fastcall HookJoyReg_GetConfig(unsigned int a1, UINT uiJoy, LPDIJOYCONFIG pjc, DWORD dwFlags)
-{
-	return DIERR_NOMOREITEMS;
-
-	if (a1 == 0)
-	{
-		// How this works:
-		// On DirectInput devices, there's a freakin hidden property that is the primary gamepad.
-		// That gamepad is always in the 0 ID.
-		// So when the application requests our gamepad ID, we only show the first
-		for (int i = 0;; i++)
-		{
-			signed int result = TrueJoyReg_GetConfig(i, uiJoy, pjc, dwFlags);
-			if (result == DIERR_NOMOREITEMS)
-			{
-				break;
-			}
-
-			if (pjc->guidInstance == Globals::dInputPlayerGuid)
-			{
-				return result;
-			}
-		}
-	}
-	else
-	{
-		return DIERR_NOMOREITEMS;
-	}
-}
-
-HRESULT __fastcall HookCDIDev_GetDeviceState(void* This, void* notUsed, IDirectInputDevice2W* pDevice, int cbData, int lpvData)
-{
-	if (!SetGamepad)
-	{
-		DevicePtr = pDevice;
-
-		// before setting, change the cooperative level
-		pDevice->Unacquire();
-		HRESULT result = pDevice->SetCooperativeLevel(GameHWND, DISCL_BACKGROUND | DISCL_EXCLUSIVE);
-
-		SetGamepad = true;
-	}
-
-	DIDEVICEINSTANCEW instance;
-	instance.dwSize = sizeof(DIDEVICEINSTANCEW);
-	pDevice->GetDeviceInfo(&instance);
-
-	GUID iguid = instance.guidInstance;
-	if (iguid == Globals::dInputPlayerGuid)
-	{
-		return TrueCDIDev_GetDeviceState(This, pDevice, cbData, lpvData);
-	}
-	else
-	{
-		return -1;
-	}
-}
-
-HRESULT __fastcall HookCDIDev_Poll(LPDIRECTINPUTDEVICE8 device, void* notUsed)
-{
-	return device->Acquire();
-}
 
 
-int __stdcall HookCDIDev_SetCooperativeLevel(LPDIRECTINPUTDEVICE a1, HWND hWnd, int a3)
-{
-	return TrueCDIDev_SetCooperativeLevel(a1, hWnd, a3);
-}
-
-HRESULT __fastcall HookCDIDev_SetDataFormat(int* a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9)
-{
-	LPDIRECTINPUTDEVICE dev = (LPDIRECTINPUTDEVICE)a6;
-	LPCDIDATAFORMAT data4 = (LPCDIDATAFORMAT)a4;
-	return TrueCDIDev_SetDataFormat((int*)a6, a4);
-}
 
 LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-#ifdef _DEBUG
-#endif
-
 	if (fixingWindow) {
 		PrintLog(("Fixing Window Event: " + std::to_string(message) + " " + std::to_string(gameSetWindowLongW)).c_str());
 
@@ -454,6 +210,9 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 			else {
 				return CallWindowProc((WNDPROC)gameSetWindowLongW, hWnd, message, wParam, lParam);
 			}
+
+		case WM_INPUT:
+			return 0;
 
 		default:
 			PrintLog(("Defaulted Window Event: " + std::to_string(message) + " " + std::to_string(gameSetWindowLongW)).c_str());
@@ -981,9 +740,23 @@ extern "C" bool WINAPI HookSetWindowPos(_In_ HWND hWnd, _In_opt_  HWND insertAft
 	return TrueSetWindowPos(hWnd, insertAfter, x, y, cx, cy, uflags);
 }
 
+extern "C" long WINAPI HookGetWindowLongW(HWND wnd, int nIndex)
+{
+	/*if (wnd == GameHWND)
+	{
+		if (nIndex == GWL_STYLE) {
+			return windowStyle;
+		}
+		else if (nIndex == GWL_EXSTYLE) {
+			return windowExStyle;
+		}
+	}*/
+
+	return TrueGetWindowLongW(wnd, nIndex);
+}
 
 extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong) {
-	PrintLog(("HookSetWindowLongW: " + std::to_string(nIndex) + " " + std::to_string(dwNewLong)).c_str());
+	//PrintLog(("HookSetWindowLongW: " + std::to_string(nIndex) + " " + std::to_string(dwNewLong)).c_str());
 	//return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
 
 	if (nIndex == GWL_WNDPROC) {
@@ -1003,25 +776,10 @@ extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong) 
 	else if (nIndex == GWL_STYLE) {
 		if (wnd == GameHWND) {
 			windowStyle = dwNewLong;
-			if (Globals::hasSetEverything) {
-				//return windowStyle;
-			}
-			//return TrueSetWindowLongW(wnd, nIndex, lStyle);
 		}
 	}
 	else if (nIndex == GWL_EXSTYLE) {
-		long exStyle = TrueGetWindowLongW(GameHWND, GWL_EXSTYLE);
-		exStyle = exStyle & ~WS_EX_DLGMODALFRAME;
-		exStyle = exStyle & ~WS_EX_CLIENTEDGE;
-		exStyle = exStyle & ~WS_EX_STATICEDGE;
-
-		if (exStyle != dwNewLong) {
-			windowExStyle = dwNewLong;
-			/*PrintLog("Reset exstyle from Hooked Set Window");
-			changingStyle = true;
-			Globals::hasSetStyle = false;
-			Globals::hasSetEverything = false;*/
-		}
+		windowExStyle = dwNewLong;
 	}
 
 	return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
@@ -1054,7 +812,6 @@ void HandleForceFocus()
 			return;
 		}
 
-		WCHAR* str = new WCHAR[50];
 		memset(str, 0, sizeof(WCHAR) * 50);
 
 		// ignore upper/lower case
@@ -1130,6 +887,8 @@ void HandleForceFocus()
 					IH_EnableHook(clipCursorPtr);
 
 					if (!Globals::enableMKBInput) {
+						SetupEmptyMouse();
+
 						void* getRawInputData = GetProcAddress(mod, "GetRawInputData");
 						IH_CreateHook(getRawInputData, HookGetRawInputData, reinterpret_cast<LPVOID*>(&TrueGetRawInputData));
 						IH_EnableHook(getRawInputData);
@@ -1147,12 +906,10 @@ void HandleForceFocus()
 
 					HookWndProcPtr = (LONG_PTR)&HookWndProc;
 					TrueWndProc = (WNDPROC)TrueSetWindowLongW(GameHWND, GWL_WNDPROC, HookWndProcPtr);
-					if (TrueWndProc == nullptr)
-					{
+					if (TrueWndProc == nullptr)	{
 						PrintLog("!!!COULD NOT SET WINDOW PROCEDURE!!!");
 					}
-					else
-					{
+					else {
 						PrintLog("Hooked to Game Window %u", (long)TrueWndProc);
 						PrintLog(("Window: " + str).c_str());
 						PrintLog("Regex: %u", wndRegex->c_str());
