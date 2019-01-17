@@ -28,6 +28,8 @@ public:
 	static DWORD resWidth;
 	static DWORD resHeight;
 
+	static bool removeTitleBar;
+
 	static bool fixResolution;
 	static bool fixPosition;
 	static bool clipMouse;

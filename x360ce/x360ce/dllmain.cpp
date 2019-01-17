@@ -18,7 +18,6 @@
 #include <codecvt>
 
 using namespace std;
-
 HANDLE tmpHandle;
 LONG_PTR gameSetWindowLongW = 0;
 
@@ -67,24 +66,24 @@ SetWindowLongWProc TrueSetWindowLongW = nullptr;
 ClipCursorProc TrueClipCursor = nullptr;
 GetRawInputDataProc TrueGetRawInputData = nullptr;
 
-RAWINPUT* emptyMouseInput = new RAWINPUT();
+RAWINPUT* emptyMouseRawInput;
 bool copiedToEmpty = false;
-
-void SetupEmptyMouse() {
-	emptyMouseInput->header.dwType = RIM_TYPEMOUSE;
-	emptyMouseInput->data.mouse.lLastX = 0;
-	emptyMouseInput->data.mouse.lLastY = 0;
-	emptyMouseInput->data.mouse.ulButtons = 0;
-	emptyMouseInput->data.mouse.ulExtraInformation = 0;
-	emptyMouseInput->data.mouse.ulRawButtons = 0;
-	emptyMouseInput->data.mouse.usButtonData = 0;
-	emptyMouseInput->data.mouse.usButtonFlags = 0;
-	emptyMouseInput->data.mouse.usFlags = 0;
-	PrintLog("empty mouse input");
-}
 
 int SetX = 0;
 int SetY = 0;
+
+void SetupEmptyMouse() {
+	emptyMouseRawInput = new RAWINPUT();
+	emptyMouseRawInput->header.dwType = RIM_TYPEMOUSE;
+	emptyMouseRawInput->data.mouse.lLastX = 0;
+	emptyMouseRawInput->data.mouse.lLastY = 0;
+	emptyMouseRawInput->data.mouse.ulButtons = 0;
+	emptyMouseRawInput->data.mouse.ulExtraInformation = 0;
+	emptyMouseRawInput->data.mouse.ulRawButtons = 0;
+	emptyMouseRawInput->data.mouse.usButtonData = 0;
+	emptyMouseRawInput->data.mouse.usButtonFlags = 0;
+	emptyMouseRawInput->data.mouse.usFlags = 0;
+}
 
 extern "C" UINT HookGetRawInputData(HRAWINPUT hRawInput, UINT uiCommand, LPVOID pData, PUINT pcbSize, UINT cbSizeHeader) {
 	UINT result = TrueGetRawInputData(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
@@ -93,68 +92,54 @@ extern "C" UINT HookGetRawInputData(HRAWINPUT hRawInput, UINT uiCommand, LPVOID 
 			RAWINPUT* raw = (RAWINPUT*)pData;
 
 			// delete any input data
-			if (raw->header.dwType == RIM_TYPEMOUSE)
-			{
+			if (raw->header.dwType == RIM_TYPEMOUSE) {
 				if (!copiedToEmpty) {
 					copiedToEmpty = true;
-					emptyMouseInput->header.dwSize = raw->header.dwSize;
-					emptyMouseInput->header.hDevice = raw->header.hDevice;
-					emptyMouseInput->header.wParam = raw->header.wParam;
+					emptyMouseRawInput->header.dwSize = raw->header.dwSize;
+					emptyMouseRawInput->header.hDevice = raw->header.hDevice;
+					emptyMouseRawInput->header.wParam = raw->header.wParam;
 				}
-				pData = emptyMouseInput;
+				pData = emptyMouseRawInput;
 			}
-			/*else if (raw->header.dwType == RIM_TYPEKEYBOARD)
-			{
-				raw->data.keyboard.VKey = 0;
-				raw->data.keyboard.Message = 0;
-			}*/
 		}
 	}
 
 	return result;
 }
 
-extern "C" BOOL WINAPI HookSetCursorPos(int x, int y)
-{
+extern "C" BOOL WINAPI HookSetCursorPos(int x, int y) {
 	SetX = x;
 	SetY = y;
 	return true;
 }
 
-extern "C" BOOL WINAPI HookGetCursorPos(LPPOINT pt)
-{
+extern "C" BOOL WINAPI HookGetCursorPos(LPPOINT pt) {
 	pt->x = SetX;
 	pt->y = SetY;
 	return true;
 }
 
-extern "C" BOOL WINAPI HookClipCursor(RECT* lpRect)
-{
+extern "C" BOOL WINAPI HookClipCursor(RECT* lpRect) {
 	return true;
 }
 
-extern "C" HWND WINAPI HookGetForegroundWindow()
-{
+extern "C" HWND WINAPI HookGetForegroundWindow() {
 	return GameHWND;
 }
 
-extern "C" bool WINAPI HookSetForegroundWindow(HWND hWnd)
-{
+extern "C" bool WINAPI HookSetForegroundWindow(HWND hWnd) {
 	return true;
 }
 
-extern "C" HWND WINAPI HookGetActiveWindow()
-{
+extern "C" HWND WINAPI HookGetActiveWindow() {
 	return GameHWND;
 }
 
-extern "C" HWND WINAPI HookGetFocus()
-{
+extern "C" HWND WINAPI HookGetFocus() {
 	return GameHWND;
 }
 
-extern "C" HWND WINAPI HookSetActiveWindow(HWND hWnd)
-{
+extern "C" HWND WINAPI HookSetActiveWindow(HWND hWnd) {
 	return NULL;
 }
 
@@ -243,8 +228,8 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 				RECT clientRect;
 				GetClientRect(GameHWND, &clientRect);
 
-				if ((hwndRect.right <= width && hwndRect.right > ((width / 10) * 8)) ||
-					(hwndRect.bottom <= height && hwndRect.bottom > ((height / 10) * 8))) {
+				if ((hwndRect.right <= width && hwndRect.right > ((width / 100) * 95)) ||
+					(hwndRect.bottom <= height && hwndRect.bottom > ((height / 100) * 95))) {
 					// 10/10 programming
 				}
 				else {
@@ -302,6 +287,9 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 						Globals::hasSetSize = true;
 					}
 					else {
+						if (Globals::removeTitleBar) {
+							height -= titleSize.y;
+						}
 						PrintLog(("Rect size: " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
 						PrintLog(("Set window size to: " + std::to_string(width) + "x" + std::to_string(height)).c_str());
 						TrueSetWindowPos(GameHWND, HWND_TOPMOST, 0, 0, width, height, SWP_FRAMECHANGED | SWP_NOMOVE);
@@ -341,7 +329,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 						TrueSetWindowPos(GameHWND, HWND_TOPMOST, x, y, 0, 0, SWP_FRAMECHANGED | SWP_NOSIZE);
 					}
 					else {
-						PrintLog(("Fixed position: " + std::to_string(hwndRect.left) + ":" + std::to_string(hwndRect.top) + " " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
+						PrintLog(("Fixed position: " + std::to_string(hwndRect.left) + ":" + std::to_string(hwndRect.top)).c_str());
 						Globals::hasSetPosition = true;
 					}
 				}
@@ -756,8 +744,7 @@ extern "C" long WINAPI HookGetWindowLongW(HWND wnd, int nIndex)
 }
 
 extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong) {
-	//PrintLog(("HookSetWindowLongW: " + std::to_string(nIndex) + " " + std::to_string(dwNewLong)).c_str());
-	//return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
+	PrintLog(("HookSetWindowLongW: " + std::to_string(nIndex) + " " + std::to_string(dwNewLong)).c_str());
 
 	if (nIndex == GWL_WNDPROC) {
 		if (wnd == GameHWND) {
@@ -776,6 +763,9 @@ extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong) 
 	else if (nIndex == GWL_STYLE) {
 		if (wnd == GameHWND) {
 			windowStyle = dwNewLong;
+			if (Globals::hasSetEverything) {
+				return dwNewLong;
+			}
 		}
 	}
 	else if (nIndex == GWL_EXSTYLE) {
@@ -1308,6 +1298,8 @@ VOID InitInstance()
 	ini.Get("Options", "ResWidth", &Globals::resWidth);
 	ini.Get("Options", "ResHeight", &Globals::resHeight);
 	ini.Get("Options", "ResHeight", &Globals::resHeight);
+
+	ini.Get("Options", "RemoveTitleBar", &Globals::removeTitleBar);
 
 	ini.Get("Options", "FixPosition", &Globals::fixPosition);
 	ini.Get("Options", "FixResolution", &Globals::fixResolution);

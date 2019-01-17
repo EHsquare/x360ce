@@ -36,6 +36,8 @@ long Globals::windowX = 0;
 DWORD Globals::resWidth = 0;
 DWORD Globals::resHeight = 0;
 
+bool Globals::removeTitleBar = false;
+
 bool Globals::fixResolution = false;
 bool Globals::fixPosition = false;
 bool Globals::clipMouse = false;
