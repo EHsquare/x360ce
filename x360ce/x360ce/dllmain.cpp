@@ -13,7 +13,6 @@
 
 #include <hidsdi.h>
 #include <atlstr.h>  
-#include <dinputd.h>
 #include <regex>
 #include <codecvt>
 
@@ -29,7 +28,7 @@ POINT titleSize;
 LONG windowStyle = 0;
 LONG windowExStyle = 0;
 LONG_PTR HookWndProcPtr = 0;
-WCHAR* str = new WCHAR[50];
+WCHAR* gameWndTitleStr = new WCHAR[50];
 
 template <typename I> std::string int_to_hex(I w, size_t hex_len = sizeof(I) << 1) {
 	static const char* digits = "0123456789ABCDEF";
@@ -50,6 +49,7 @@ typedef long(WINAPI* GetWindowLongWProc)(HWND, int);
 typedef LONG(WINAPI* SetWindowLongWProc)(HWND, int, LONG);
 typedef BOOL(WINAPI* ClipCursorProc)(RECT*);
 typedef UINT(WINAPI* GetRawInputDataProc)(HRAWINPUT, UINT, LPVOID, PUINT, UINT);
+typedef BOOL(WINAPI* RegisterRawInputDevicesProc)(PCRAWINPUTDEVICE, UINT, UINT);
 
 WNDPROC TrueWndProc = nullptr;
 HWND GameHWND = nullptr;
@@ -65,6 +65,7 @@ GetWindowLongWProc TrueGetWindowLongW = nullptr;
 SetWindowLongWProc TrueSetWindowLongW = nullptr;
 ClipCursorProc TrueClipCursor = nullptr;
 GetRawInputDataProc TrueGetRawInputData = nullptr;
+RegisterRawInputDevicesProc TrueRegisterRawInputDevices = nullptr;
 
 RAWINPUT* emptyMouseRawInput;
 bool copiedToEmpty = false;
@@ -85,27 +86,40 @@ void SetupEmptyMouse() {
 	emptyMouseRawInput->data.mouse.usFlags = 0;
 }
 
-extern "C" UINT HookGetRawInputData(HRAWINPUT hRawInput, UINT uiCommand, LPVOID pData, PUINT pcbSize, UINT cbSizeHeader) {
-	UINT result = TrueGetRawInputData(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
-	if (uiCommand == RID_INPUT) {
-		if (pData != NULL) {
-			RAWINPUT* raw = (RAWINPUT*)pData;
+extern "C" BOOL HookRegisterRawInputDevices(
+	PCRAWINPUTDEVICE pRawInputDevices,
+	UINT             uiNumDevices,
+	UINT             cbSize) {
 
-			// delete any input data
-			if (raw->header.dwType == RIM_TYPEMOUSE) {
-				if (!copiedToEmpty) {
-					copiedToEmpty = true;
-					emptyMouseRawInput->header.dwSize = raw->header.dwSize;
-					emptyMouseRawInput->header.hDevice = raw->header.hDevice;
-					emptyMouseRawInput->header.wParam = raw->header.wParam;
-				}
-				pData = emptyMouseRawInput;
-			}
-		}
-	}
+	return true;
 
-	return result;
+	//PrintLog(("Register Raw Input Devices: " + std::to_string(uiNumDevices)).c_str());
+	//return TrueRegisterRawInputDevices(pRawInputDevices, uiNumDevices, cbSize);
 }
+
+//extern "C" UINT HookGetRawInputData(HRAWINPUT hRawInput, UINT uiCommand, LPVOID pData, PUINT pcbSize, UINT cbSizeHeader) {
+//	UINT result = TrueGetRawInputData(hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
+//	return result;
+//
+//	if (uiCommand == RID_INPUT) {
+//		if (pData != NULL) {
+//			RAWINPUT* raw = (RAWINPUT*)pData;
+//
+//			// delete any input data
+//			if (raw->header.dwType == RIM_TYPEMOUSE) {
+//				if (!copiedToEmpty) {
+//					copiedToEmpty = true;
+//					emptyMouseRawInput->header.dwSize = raw->header.dwSize;
+//					emptyMouseRawInput->header.hDevice = raw->header.hDevice;
+//					emptyMouseRawInput->header.wParam = raw->header.wParam;
+//				}
+//				pData = emptyMouseRawInput;
+//			}
+//		}
+//	}
+//
+//	return result;
+//}
 
 extern "C" BOOL WINAPI HookSetCursorPos(int x, int y) {
 	SetX = x;
@@ -172,9 +186,6 @@ std::vector<HWND> getToplevelWindows()
 	return args.handles;
 }
 
-
-
-
 LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	if (fixingWindow) {
 		PrintLog(("Fixing Window Event: " + std::to_string(message) + " " + std::to_string(gameSetWindowLongW)).c_str());
@@ -228,42 +239,19 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 				RECT clientRect;
 				GetClientRect(GameHWND, &clientRect);
 
-				if ((hwndRect.right <= width && hwndRect.right > ((width / 100) * 95)) ||
-					(hwndRect.bottom <= height && hwndRect.bottom > ((height / 100) * 95))) {
+				if ((clientRect.right <= width && clientRect.right > ((width / 100) * 95)) &&
+					(clientRect.bottom <= height && clientRect.bottom > ((height / 100) * 95))) {
 					// 10/10 programming
 				}
 				else {
-					PrintLog(("Reset size " + std::to_string(clientRect.right) + "x" + std::to_string(clientRect.bottom)).c_str());
 					setEverything = false;
+					PrintLog(("Reset size " + std::to_string(clientRect.right) + "x" + std::to_string(clientRect.bottom)).c_str());
 					Globals::hasSetSize = false;
 				}
-
-				long currentStyle = TrueGetWindowLongW(GameHWND, GWL_STYLE);
-				long lStyle = currentStyle;
-				lStyle = lStyle & ~WS_CAPTION;
-				lStyle = lStyle & ~WS_THICKFRAME;
-				lStyle = lStyle & ~WS_MINIMIZE;
-				lStyle = lStyle & ~WS_MAXIMIZE;
-				lStyle = lStyle & ~WS_SYSMENU;
-
-				long currentExStyle = TrueGetWindowLongW(GameHWND, GWL_EXSTYLE);
-				long exStyle = currentExStyle;
-				exStyle = exStyle & ~WS_EX_DLGMODALFRAME;
-				exStyle = exStyle & ~WS_EX_CLIENTEDGE;
-				exStyle = exStyle & ~WS_EX_STATICEDGE;
-
-				/*if (lStyle != currentStyle ||
-					exStyle != currentExStyle) {
-					PrintLog("Reset style");
-
-					setEverything = false;
-					Globals::hasSetStyle = false;
-				}*/
-
+				
 				if (setEverything) {
 					justFixedWindow = true;
-					PrintLog(("Set everything with: style(" + std::to_string(lStyle) + ") " + " exstyle(" + std::to_string(exStyle) + ") " +
-						std::to_string(hwndRect.left) + ":" + std::to_string(hwndRect.top) + " " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
+					PrintLog(("Set everything with:" + std::to_string(hwndRect.top) + " " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
 				}
 
 				Globals::hasSetEverything = setEverything;
@@ -279,17 +267,15 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 					GetClientRect(GameHWND, &hwndRect);
 
 					// less or equal to the actual size,
-					// but 80% offset to make sure
+					// but 95% offset to make sure
 					// TODO: this is terrible
-					if ((hwndRect.right <= width && hwndRect.right > ((width / 10) * 8)) ||
-						(hwndRect.bottom <= height && hwndRect.bottom > ((height / 10) * 8))) {
+					// or is it?
+					if ((hwndRect.right <= width && hwndRect.right > ((width / 100) * 95)) &&
+						(hwndRect.bottom <= height && hwndRect.bottom > ((height / 100) * 95))) {
 						PrintLog(("Fixed size: " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
 						Globals::hasSetSize = true;
 					}
 					else {
-						if (Globals::removeTitleBar) {
-							height -= titleSize.y;
-						}
 						PrintLog(("Rect size: " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
 						PrintLog(("Set window size to: " + std::to_string(width) + "x" + std::to_string(height)).c_str());
 						TrueSetWindowPos(GameHWND, HWND_TOPMOST, 0, 0, width, height, SWP_FRAMECHANGED | SWP_NOMOVE);
@@ -360,6 +346,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 
 				if (lStyle == currentStyle && exStyle == currentExStyle) {
 					Globals::hasSetStyle = true;
+					PrintLog(("Fixed style: " + std::to_string(currentStyle)).c_str());
 				}
 				else {
 					TrueSetWindowLongW(GameHWND, GWL_STYLE, lStyle);
@@ -763,7 +750,7 @@ extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong) 
 	else if (nIndex == GWL_STYLE) {
 		if (wnd == GameHWND) {
 			windowStyle = dwNewLong;
-			if (Globals::hasSetEverything) {
+			if (Globals::hasSetStyle) {
 				return dwNewLong;
 			}
 		}
@@ -802,7 +789,7 @@ void HandleForceFocus()
 			return;
 		}
 
-		memset(str, 0, sizeof(WCHAR) * 50);
+		memset(gameWndTitleStr, 0, sizeof(WCHAR) * 50);
 
 		// ignore upper/lower case
 		wregex gameName(wndRegex->c_str(), regex_constants::icase);
@@ -821,9 +808,9 @@ void HandleForceFocus()
 					continue;
 				}
 
-				GetWindowText(wnd, str, 50);
+				GetWindowText(wnd, gameWndTitleStr, 50);
 
-				std::wstring stStr = std::wstring(str);
+				std::wstring stStr = std::wstring(gameWndTitleStr);
 				if (stStr.empty())
 				{
 					continue;
@@ -879,9 +866,14 @@ void HandleForceFocus()
 					if (!Globals::enableMKBInput) {
 						SetupEmptyMouse();
 
-						void* getRawInputData = GetProcAddress(mod, "GetRawInputData");
+						/*void* getRawInputData = GetProcAddress(mod, "GetRawInputData");
 						IH_CreateHook(getRawInputData, HookGetRawInputData, reinterpret_cast<LPVOID*>(&TrueGetRawInputData));
-						IH_EnableHook(getRawInputData);
+						IH_EnableHook(getRawInputData);*/
+
+						//HookRegisterRawInputDevices
+						void* registerRawInputDevices = GetProcAddress(mod, "RegisterRawInputDevices");
+						IH_CreateHook(registerRawInputDevices, HookRegisterRawInputDevices, reinterpret_cast<LPVOID*>(&TrueRegisterRawInputDevices));
+						IH_EnableHook(registerRawInputDevices);
 
 						void* setCursorPosPtr = GetProcAddress(mod, "SetCursorPos");
 						IH_CreateHook(setCursorPosPtr, HookSetCursorPos, reinterpret_cast<LPVOID*>(&TrueSetCursorPos));
@@ -911,8 +903,6 @@ void HandleForceFocus()
 				}
 			}
 		}
-
-		delete[] str;
 	}
 }
 
@@ -1298,8 +1288,6 @@ VOID InitInstance()
 	ini.Get("Options", "ResWidth", &Globals::resWidth);
 	ini.Get("Options", "ResHeight", &Globals::resHeight);
 	ini.Get("Options", "ResHeight", &Globals::resHeight);
-
-	ini.Get("Options", "RemoveTitleBar", &Globals::removeTitleBar);
 
 	ini.Get("Options", "FixPosition", &Globals::fixPosition);
 	ini.Get("Options", "FixResolution", &Globals::fixResolution);
