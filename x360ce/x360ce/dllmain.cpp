@@ -38,18 +38,22 @@ template <typename I> std::string int_to_hex(I w, size_t hex_len = sizeof(I) << 
 	return rc;
 }
 
-typedef HWND(WINAPI* GetForegroundProc)(void);
-typedef bool(WINAPI* SetForegroundProc)(HWND);
-typedef HWND(WINAPI* GetHwndProc)(void);
-typedef HWND(WINAPI* SetActiveWindowProc)(HWND);
-typedef BOOL(WINAPI* SetCursorPosProc)(int, int);
-typedef BOOL(WINAPI* GetCursorPosProc)(LPPOINT);
-typedef HWND(WINAPI* SetWindowPosProc)(HWND, HWND, int, int, int, int, UINT);
-typedef long(WINAPI* GetWindowLongWProc)(HWND, int);
-typedef LONG(WINAPI* SetWindowLongWProc)(HWND, int, LONG);
-typedef BOOL(WINAPI* ClipCursorProc)(RECT*);
-typedef UINT(WINAPI* GetRawInputDataProc)(HRAWINPUT, UINT, LPVOID, PUINT, UINT);
-typedef BOOL(WINAPI* RegisterRawInputDevicesProc)(PCRAWINPUTDEVICE, UINT, UINT);
+typedef HWND(WINAPI * GetForegroundProc)(void);
+typedef bool(WINAPI * SetForegroundProc)(HWND);
+typedef HWND(WINAPI * GetHwndProc)(void);
+typedef HWND(WINAPI * SetActiveWindowProc)(HWND);
+typedef BOOL(WINAPI * SetCursorPosProc)(int, int);
+typedef BOOL(WINAPI * GetCursorPosProc)(LPPOINT);
+typedef HWND(WINAPI * SetWindowPosProc)(HWND, HWND, int, int, int, int, UINT);
+typedef BOOL(WINAPI * ClipCursorProc)(RECT*);
+typedef UINT(WINAPI * GetRawInputDataProc)(HRAWINPUT, UINT, LPVOID, PUINT, UINT);
+typedef BOOL(WINAPI * RegisterRawInputDevicesProc)(PCRAWINPUTDEVICE, UINT, UINT);
+
+typedef long(WINAPI * GetWindowLongWProc)(HWND, int);
+typedef LONG(WINAPI * SetWindowLongWProc)(HWND, int, LONG);
+
+typedef LONG_PTR(WINAPI * GetWindowLongPtrWProc)(HWND, int);
+typedef LONG_PTR(WINAPI * SetWindowLongPtrWProc)(HWND, int, LONG_PTR);
 
 WNDPROC TrueWndProc = nullptr;
 HWND GameHWND = nullptr;
@@ -61,13 +65,18 @@ SetWindowPosProc TrueSetWindowPos = nullptr;
 SetCursorPosProc TrueSetCursorPos = nullptr;
 GetCursorPosProc TrueGetCursorPos = nullptr;
 GetHwndProc TrueGetFocus = nullptr;
+
 GetWindowLongWProc TrueGetWindowLongW = nullptr;
 SetWindowLongWProc TrueSetWindowLongW = nullptr;
+
+GetWindowLongPtrWProc TrueGetWindowLongPtrW = nullptr;
+SetWindowLongPtrWProc TrueSetWindowLongPtrW = nullptr;
+
 ClipCursorProc TrueClipCursor = nullptr;
 GetRawInputDataProc TrueGetRawInputData = nullptr;
 RegisterRawInputDevicesProc TrueRegisterRawInputDevices = nullptr;
 
-RAWINPUT* emptyMouseRawInput;
+RAWINPUT * emptyMouseRawInput;
 bool copiedToEmpty = false;
 
 int SetX = 0;
@@ -133,7 +142,7 @@ extern "C" BOOL WINAPI HookGetCursorPos(LPPOINT pt) {
 	return true;
 }
 
-extern "C" BOOL WINAPI HookClipCursor(RECT* lpRect) {
+extern "C" BOOL WINAPI HookClipCursor(RECT * lpRect) {
 	return true;
 }
 
@@ -163,14 +172,15 @@ struct EnumWindowsCallbackArgs {
 	std::vector<HWND> handles;
 };
 
-static BOOL CALLBACK EnumWindowsCallback(HWND hnd, LPARAM lParam)
+static BOOL CALLBACK EnumWindowsCallback(HWND hwnd, LPARAM lParam)
 {
-	EnumWindowsCallbackArgs *args = (EnumWindowsCallbackArgs *)lParam;
+	EnumWindowsCallbackArgs* args = (EnumWindowsCallbackArgs*)lParam;
 
 	DWORD windowPID;
-	(void)::GetWindowThreadProcessId(hnd, &windowPID);
+	(void)GetWindowThreadProcessId(hwnd, &windowPID);
+
 	if (windowPID == args->pid) {
-		args->handles.push_back(hnd);
+		args->handles.push_back(hwnd);
 	}
 
 	return TRUE;
@@ -178,9 +188,11 @@ static BOOL CALLBACK EnumWindowsCallback(HWND hnd, LPARAM lParam)
 
 std::vector<HWND> getToplevelWindows()
 {
-	EnumWindowsCallbackArgs args(::GetCurrentProcessId());
-	if (::EnumWindows(&EnumWindowsCallback, (LPARAM)&args) == FALSE) {
+	EnumWindowsCallbackArgs args(GetCurrentProcessId());
+	if (EnumWindows(&EnumWindowsCallback, (LPARAM)& args) == FALSE) {
 		// XXX Log error here
+		PrintLog("Error getting windows");
+
 		return std::vector<HWND>();
 	}
 	return args.handles;
@@ -248,7 +260,7 @@ LRESULT CALLBACK HookWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 					PrintLog(("Reset size " + std::to_string(clientRect.right) + "x" + std::to_string(clientRect.bottom)).c_str());
 					Globals::hasSetSize = false;
 				}
-				
+
 				if (setEverything) {
 					justFixedWindow = true;
 					PrintLog(("Set everything with:" + std::to_string(hwndRect.top) + " " + std::to_string(hwndRect.right) + "x" + std::to_string(hwndRect.bottom)).c_str());
@@ -729,11 +741,25 @@ extern "C" long WINAPI HookGetWindowLongW(HWND wnd, int nIndex)
 
 	return TrueGetWindowLongW(wnd, nIndex);
 }
+extern "C" long WINAPI HookGetWindowLongPtrW(HWND wnd, int nIndex)
+{
+	/*if (wnd == GameHWND)
+	{
+		if (nIndex == GWL_STYLE) {
+			return windowStyle;
+		}
+		else if (nIndex == GWL_EXSTYLE) {
+			return windowExStyle;
+		}
+	}*/
+
+	return TrueGetWindowLongPtrW(wnd, nIndex);
+}
 
 extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong) {
 	PrintLog(("HookSetWindowLongW: " + std::to_string(nIndex) + " " + std::to_string(dwNewLong)).c_str());
 
-	if (nIndex == GWL_WNDPROC) {
+	if (nIndex == GWLP_WNDPROC) {//GWL_WNDPROC) {
 		if (wnd == GameHWND) {
 			// save the actual game setWindowLongW
 			if (dwNewLong != HookWndProcPtr) {
@@ -762,7 +788,11 @@ extern "C" long WINAPI HookSetWindowLongW(HWND wnd, int nIndex, LONG dwNewLong) 
 	return TrueSetWindowLongW(wnd, nIndex, dwNewLong);
 }
 
-unsigned int ComputeLevenshteinDistance(const std::wstring& s1, const std::wstring& s2)
+extern "C" long WINAPI HookSetWindowLongPtrW(HWND wnd, int nIndex, LONG dwNewLong) {
+	return HookSetWindowLongW(wnd, nIndex, dwNewLong);
+}
+
+unsigned int ComputeLevenshteinDistance(const std::wstring & s1, const std::wstring & s2)
 {
 	const std::size_t len1 = s1.size(), len2 = s2.size();
 	std::vector<std::vector<unsigned int>> d(len1 + 1, std::vector<unsigned int>(len2 + 1));
@@ -789,16 +819,15 @@ void HandleForceFocus()
 			return;
 		}
 
-		memset(gameWndTitleStr, 0, sizeof(WCHAR) * 50);
-
 		// ignore upper/lower case
 		wregex gameName(wndRegex->c_str(), regex_constants::icase);
+		PrintLog("Force focus loop");
 
 		while (GameHWND == nullptr)
 		{
-			Sleep(2000);
 			std::vector<HWND> windows = getToplevelWindows();
 			size_t size = windows.size();
+			PrintLog(("Window count" + std::to_string(size)).c_str());
 
 			for (int i = 0; i < size; i++)
 			{
@@ -808,7 +837,12 @@ void HandleForceFocus()
 					continue;
 				}
 
+				// clear gameWndTitleStr with all zeroes
+				memset(gameWndTitleStr, 0, sizeof(WCHAR) * 50);
+
+				PrintLog("Trying to get game window name");
 				GetWindowText(wnd, gameWndTitleStr, 50);
+				PrintLog("Got it");
 
 				std::wstring stStr = std::wstring(gameWndTitleStr);
 				if (stStr.empty())
@@ -818,77 +852,17 @@ void HandleForceFocus()
 
 				if (regex_search(stStr, gameName)) // regex
 				{
+					PrintLog("Trying to hook to game window");
+
 					wstring_convert<codecvt_utf8_utf16<wchar_t>> convert;
 					string str = convert.to_bytes(stStr);
 					PrintLog(str.c_str());
 
 					GameHWND = wnd;
-					HMODULE mod = LoadLibrary(L"user32");
 
-					void* getWindowLongWPtr = GetProcAddress(mod, "GetWindowLongW");
-					IH_CreateHook(getWindowLongWPtr, HookGetWindowLongW, reinterpret_cast<LPVOID*>(&TrueGetWindowLongW));
-					IH_EnableHook(getWindowLongWPtr);
-
-					void* getForegroundPtr = GetProcAddress(mod, "GetForegroundWindow");
-					IH_CreateHook(getForegroundPtr, HookGetForegroundWindow, reinterpret_cast<LPVOID*>(&TrueGetForegroundWindow));
-					IH_EnableHook(getForegroundPtr);
-
-					void* setForegroundPtr = GetProcAddress(mod, "SetForegroundWindow");
-					IH_CreateHook(setForegroundPtr, HookSetForegroundWindow, reinterpret_cast<LPVOID*>(&TrueSetForegroundWindow));
-					IH_EnableHook(setForegroundPtr);
-
-					void* setActivePtr = GetProcAddress(mod, "SetActiveWindow");
-					IH_CreateHook(setActivePtr, HookSetActiveWindow, reinterpret_cast<LPVOID*>(&TrueSetActiveWindow));
-					IH_EnableHook(setActivePtr);
-
-					// override SetWindowLongPtr so the game cant replace our function
-					void* setWindowLongWPtr = GetProcAddress(mod, "SetWindowLongW");
-					IH_CreateHook(setWindowLongWPtr, HookSetWindowLongW, reinterpret_cast<LPVOID*>(&TrueSetWindowLongW));
-					IH_EnableHook(setWindowLongWPtr);
-
-					//SetWindowPos
-					void* setWindowPosPtr = GetProcAddress(mod, "SetWindowPos");
-					IH_CreateHook(setWindowPosPtr, HookSetWindowPos, reinterpret_cast<LPVOID*>(&TrueSetWindowPos));
-					IH_EnableHook(setWindowPosPtr);
-
-					void* getFocusPtr = GetProcAddress(mod, "GetFocus");
-					IH_CreateHook(getFocusPtr, HookGetFocus, reinterpret_cast<LPVOID*>(&TrueGetFocus));
-					IH_EnableHook(getFocusPtr);
-
-					void* getActivePtr = GetProcAddress(mod, "GetActiveWindow");
-					IH_CreateHook(getActivePtr, HookGetActiveWindow, reinterpret_cast<LPVOID*>(&TrueGetActiveWindow));
-					IH_EnableHook(getActivePtr);
-
-					void* clipCursorPtr = GetProcAddress(mod, "ClipCursor");
-					IH_CreateHook(clipCursorPtr, HookClipCursor, reinterpret_cast<LPVOID*>(&TrueClipCursor));
-					IH_EnableHook(clipCursorPtr);
-
-					if (!Globals::enableMKBInput) {
-						SetupEmptyMouse();
-
-						/*void* getRawInputData = GetProcAddress(mod, "GetRawInputData");
-						IH_CreateHook(getRawInputData, HookGetRawInputData, reinterpret_cast<LPVOID*>(&TrueGetRawInputData));
-						IH_EnableHook(getRawInputData);*/
-
-						//HookRegisterRawInputDevices
-						void* registerRawInputDevices = GetProcAddress(mod, "RegisterRawInputDevices");
-						IH_CreateHook(registerRawInputDevices, HookRegisterRawInputDevices, reinterpret_cast<LPVOID*>(&TrueRegisterRawInputDevices));
-						IH_EnableHook(registerRawInputDevices);
-
-						void* setCursorPosPtr = GetProcAddress(mod, "SetCursorPos");
-						IH_CreateHook(setCursorPosPtr, HookSetCursorPos, reinterpret_cast<LPVOID*>(&TrueSetCursorPos));
-						IH_EnableHook(setCursorPosPtr);
-
-						void* getCursorPosPtr = GetProcAddress(mod, "GetCursorPos");
-						IH_CreateHook(getCursorPosPtr, HookGetCursorPos, reinterpret_cast<LPVOID*>(&TrueGetCursorPos));
-						IH_EnableHook(getCursorPosPtr);
-
-						PrintLog("Hooked to cursor functions");
-					}
-
-					HookWndProcPtr = (LONG_PTR)&HookWndProc;
-					TrueWndProc = (WNDPROC)TrueSetWindowLongW(GameHWND, GWL_WNDPROC, HookWndProcPtr);
-					if (TrueWndProc == nullptr)	{
+					HookWndProcPtr = (LONG_PTR)& HookWndProc;
+					TrueWndProc = (WNDPROC)TrueSetWindowLongW(GameHWND, GWLP_WNDPROC, HookWndProcPtr);
+					if (TrueWndProc == nullptr) {
 						PrintLog("!!!COULD NOT SET WINDOW PROCEDURE!!!");
 					}
 					else {
@@ -901,13 +875,14 @@ void HandleForceFocus()
 
 					break;
 				}
+
+				Sleep(2000);
 			}
 		}
 	}
 }
 
-DWORD WINAPI HookThread()
-{
+DWORD WINAPI HookThread() {
 	//	if (Globals::dInputEnabled || Globals::dInputForceDisable)
 	//	{
 	//		HMODULE dinputModule = LoadLibrary(L"dinput");
@@ -1176,7 +1151,7 @@ VOID InitInstance()
 			PrintLog(("XInput hook: Gamepad 0 to " + guidStr).c_str());
 
 			std::shared_ptr<Controller> controller(new Controller(0));
-			Controller* pController = controller.get();
+			Controller * pController = controller.get();
 			if (pController)
 			{
 				pController->isFake = true;
@@ -1275,13 +1250,6 @@ VOID InitInstance()
 	ini.Get("Options", "ForceFocusWindowRegex", &forceFocusWindowRegex);
 	Globals::forceFocusWindowRegex = KeepString(forceFocusWindowRegex);
 
-	if (Globals::forceFocus) {
-		if (Globals::forceFocusWindowRegex->length() == 0) {
-			MessageBox(NULL, L"BAD NUCLEUS CONFIG, no Window Regex name!!", L"BAD NUCLEUS CONFIG", MB_OK);
-			ExitProcess(500);
-		}
-	}
-
 	ini.Get("Options", "WindowX", &Globals::windowX);
 	ini.Get("Options", "WindowY", &Globals::windowY);
 
@@ -1300,18 +1268,95 @@ VOID InitInstance()
 	ini.Get("Options", "EnableMKBInput", &Globals::enableMKBInput);
 
 	MH_Initialize();
-	tmpHandle = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)&HookThread, 0, 0, 0);
+	tmpHandle = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)& HookThread, 0, 0, 0);
 
-	if (Globals::xInputEnabled)
-	{
+	if (Globals::forceFocus) {
+		if (Globals::forceFocusWindowRegex->length() == 0) {
+			MessageBox(NULL, L"BAD NUCLEUS CONFIG, no Window Regex name!!", L"BAD NUCLEUS CONFIG", MB_OK);
+			ExitProcess(500);
+		}
+		else {
+			HMODULE mod = LoadLibrary(L"user32");
+
+			void* getWindowLongWPtr = GetProcAddress(mod, "GetWindowLongW");
+			IH_CreateHook(getWindowLongWPtr, HookGetWindowLongW, reinterpret_cast<LPVOID*>(&TrueGetWindowLongW));
+			IH_EnableHook(getWindowLongWPtr);
+
+			void* getWindowLongPtrWPtr = GetProcAddress(mod, "GetWindowLongPtrW");
+			IH_CreateHook(getWindowLongPtrWPtr, HookGetWindowLongPtrW, reinterpret_cast<LPVOID*>(&TrueGetWindowLongPtrW));
+			IH_EnableHook(getWindowLongPtrWPtr);
+
+			void* getForegroundPtr = GetProcAddress(mod, "GetForegroundWindow");
+			IH_CreateHook(getForegroundPtr, HookGetForegroundWindow, reinterpret_cast<LPVOID*>(&TrueGetForegroundWindow));
+			IH_EnableHook(getForegroundPtr);
+
+			void* setForegroundPtr = GetProcAddress(mod, "SetForegroundWindow");
+			IH_CreateHook(setForegroundPtr, HookSetForegroundWindow, reinterpret_cast<LPVOID*>(&TrueSetForegroundWindow));
+			IH_EnableHook(setForegroundPtr);
+
+			void* setActivePtr = GetProcAddress(mod, "SetActiveWindow");
+			IH_CreateHook(setActivePtr, HookSetActiveWindow, reinterpret_cast<LPVOID*>(&TrueSetActiveWindow));
+			IH_EnableHook(setActivePtr);
+
+			// override SetWindowLongPtr so the game cant replace our function
+			void* setWindowLongWPtr = GetProcAddress(mod, "SetWindowLongW");
+			IH_CreateHook(setWindowLongWPtr, HookSetWindowLongW, reinterpret_cast<LPVOID*>(&TrueSetWindowLongW));
+			IH_EnableHook(setWindowLongWPtr);
+
+			void* setWindowLongPtrWPtr = GetProcAddress(mod, "SetWindowLongPtrW");
+			IH_CreateHook(setWindowLongPtrWPtr, HookSetWindowLongW, reinterpret_cast<LPVOID*>(&TrueSetWindowLongPtrW));
+			IH_EnableHook(setWindowLongPtrWPtr);
+
+			//SetWindowPos
+			void* setWindowPosPtr = GetProcAddress(mod, "SetWindowPos");
+			IH_CreateHook(setWindowPosPtr, HookSetWindowPos, reinterpret_cast<LPVOID*>(&TrueSetWindowPos));
+			IH_EnableHook(setWindowPosPtr);
+
+			void* getFocusPtr = GetProcAddress(mod, "GetFocus");
+			IH_CreateHook(getFocusPtr, HookGetFocus, reinterpret_cast<LPVOID*>(&TrueGetFocus));
+			IH_EnableHook(getFocusPtr);
+
+			void* getActivePtr = GetProcAddress(mod, "GetActiveWindow");
+			IH_CreateHook(getActivePtr, HookGetActiveWindow, reinterpret_cast<LPVOID*>(&TrueGetActiveWindow));
+			IH_EnableHook(getActivePtr);
+
+			void* clipCursorPtr = GetProcAddress(mod, "ClipCursor");
+			IH_CreateHook(clipCursorPtr, HookClipCursor, reinterpret_cast<LPVOID*>(&TrueClipCursor));
+			IH_EnableHook(clipCursorPtr);
+
+			if (!Globals::enableMKBInput) {
+				SetupEmptyMouse();
+
+				/*void* getRawInputData = GetProcAddress(mod, "GetRawInputData");
+				IH_CreateHook(getRawInputData, HookGetRawInputData, reinterpret_cast<LPVOID*>(&TrueGetRawInputData));
+				IH_EnableHook(getRawInputData);*/
+
+				//HookRegisterRawInputDevices
+				void* registerRawInputDevices = GetProcAddress(mod, "RegisterRawInputDevices");
+				IH_CreateHook(registerRawInputDevices, HookRegisterRawInputDevices, reinterpret_cast<LPVOID*>(&TrueRegisterRawInputDevices));
+				IH_EnableHook(registerRawInputDevices);
+
+				void* setCursorPosPtr = GetProcAddress(mod, "SetCursorPos");
+				IH_CreateHook(setCursorPosPtr, HookSetCursorPos, reinterpret_cast<LPVOID*>(&TrueSetCursorPos));
+				IH_EnableHook(setCursorPosPtr);
+
+				void* getCursorPosPtr = GetProcAddress(mod, "GetCursorPos");
+				IH_CreateHook(getCursorPosPtr, HookGetCursorPos, reinterpret_cast<LPVOID*>(&TrueGetCursorPos));
+				IH_EnableHook(getCursorPosPtr);
+
+				PrintLog("Hooked to cursor functions");
+			}
+		}
+	}
+
+	if (Globals::xInputEnabled) {
 		// grab gamepad state
 		XINPUT_STATE state;
 		XInputModuleManager::Get().XInputGetState(0, &state);
 	}
 }
 
-extern "C" VOID WINAPI Reset()
-{
+extern "C" VOID WINAPI Reset() {
 	PrintLog("Restarting");
 
 	// Only x360ce.App will call this so InputHook is not required, disable it.
@@ -1320,8 +1365,7 @@ extern "C" VOID WINAPI Reset()
 	ControllerManager::Get().GetConfig().ReadConfig();
 }
 
-extern "C" BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
-{
+extern "C" BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
 	UNREFERENCED_PARAMETER(lpReserved);
 
 	switch (ul_reason_for_call)
@@ -1330,7 +1374,6 @@ extern "C" BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVO
 		DisableThreadLibraryCalls(hModule);
 		InitInstance();
 		break;
-
 	case DLL_PROCESS_DETACH:
 		break;
 	}
